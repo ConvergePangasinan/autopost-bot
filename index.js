@@ -1,49 +1,84 @@
-// index.js
-const express = require("express");
-const fetch = require("node-fetch"); // for API calls
-const app = express();
-const PORT = process.env.PORT || 10000;
+import express from "express";
+import fetch from "node-fetch";
+import dotenv from "dotenv";
+import { GoogleSpreadsheet } from "google-spreadsheet";
+import { JWT } from "google-auth-library";
 
-// Optional: JSON body parsing
+dotenv.config();
+
+const app = express();
 app.use(express.json());
 
-// ✅ Test route to verify your Render app is alive
+// === ENV VARIABLES ===
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const FB_PAGE_ID = process.env.FB_PAGE_ID;
+const FB_ACCESS_TOKEN = process.env.FB_ACCESS_TOKEN;
+const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const PORT = process.env.PORT || 10000;
+
+// === MAIN ROUTE ===
 app.get("/", (req, res) => {
-  res.send("🚀 Converge Auto Poster is running successfully on Render!");
+  res.send("✅ Converge Auto Poster is running successfully!");
 });
 
-// ✅ Example endpoint to auto-post to Facebook Page
-app.post("/post", async (req, res) => {
-  try {
-    const PAGE_ID = process.env.PAGE_ID;
-    const ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
-    const { message, photoUrl, linkUrl } = req.body;
-
-    if (!message || !photoUrl) {
-      return res.status(400).json({ error: "Missing message or photoUrl" });
-    }
-
-    const url = `https://graph.facebook.com/v19.0/${PAGE_ID}/photos`;
-    const formData = new URLSearchParams();
-    formData.append("url", photoUrl);
-    formData.append(
-      "caption",
-      linkUrl ? `${message}\n\nLearn more: ${linkUrl}` : message
-    );
-    formData.append("access_token", ACCESS_TOKEN);
-
-    const response = await fetch(url, {
+// === GEMINI CAPTION GENERATOR ===
+async function generateCaption(prompt) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {
       method: "POST",
-      body: formData,
-    });
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `Create a short catchy caption for: ${prompt}` }] }],
+      }),
+    }
+  );
 
-    const result = await response.json();
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  const data = await response.json();
+  return (
+    data.candidates?.[0]?.content?.parts?.[0]?.text ||
+    "Fast, reliable, and affordable Converge Internet! 🚀"
+  );
+}
+
+// === FACEBOOK POST FUNCTION ===
+async function postToFacebook(message, imageUrl, linkUrl) {
+  const url = `https://graph.facebook.com/${FB_PAGE_ID}/photos`;
+  const body = new URLSearchParams();
+  body.append("url", imageUrl);
+  body.append(
+    "caption",
+    linkUrl ? `${message}\n\nLearn more: ${linkUrl}` : message
+  );
+  body.append("access_token", FB_ACCESS_TOKEN);
+
+  const response = await fetch(url, { method: "POST", body });
+  return response.json();
+}
+
+// === FETCH GOOGLE SHEET AND POST ===
+async function autoPostFromSheet() {
+  try {
+    // Replace with your Google Cloud JSON key later if you use a service account
+    console.log("⚙️ Reading Google Sheet... (manual key setup needed for full automation)");
+  } catch (error) {
+    console.error("❌ Error posting from sheet:", error);
   }
+}
+
+// === MANUAL POST TEST ROUTE ===
+app.post("/post", async (req, res) => {
+  const { captionPrompt, photoUrl, linkUrl } = req.body;
+
+  if (!photoUrl) {
+    return res.status(400).json({ error: "Photo URL required" });
+  }
+
+  const caption = await generateCaption(captionPrompt || "Converge Internet Promo");
+  const result = await postToFacebook(caption, photoUrl, linkUrl);
+
+  res.json(result);
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+// === START SERVER ===
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
