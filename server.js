@@ -1,118 +1,100 @@
-Pimport express from "express";
-import fetch from "node-fetch";
+import express from "express";
+import axios from "axios";
 import dotenv from "dotenv";
-import { google } from "googleapis";
 
 dotenv.config();
+
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 10000;
 
-// =============================
-// 🔹 CONFIG
-// =============================
-const PORT = process.env.PORT || 3000;
+// Load environment variables
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const FACEBOOK_PAGE_ID = process.env.FACEBOOK_PAGE_ID;
-const FACEBOOK_ACCESS_TOKEN = process.env.FACEBOOK_ACCESS_TOKEN;
-const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const FB_PAGE_ACCESS_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
+const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
 
-// =============================
-// 🔹 HELPER FUNCTIONS
-// =============================
+// --- Function to fetch a random post from Google Sheets ---
+async function getRandomSheetRow() {
+  try {
+    const res = await axios.get(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_ID}/values/Sheet1!A:C?key=${process.env.GOOGLE_API_KEY}`
+    );
 
-// Fetch captions & image links from Google Sheet
-async function getSheetData() {
-  const sheets = google.sheets({ version: "v4" });
-  const auth = new google.auth.GoogleAuth({
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) return null;
 
-  const client = await auth.getClient();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: GOOGLE_SHEET_ID,
-    range: "Sheet1!A2:C",
-    auth: client,
-  });
-
-  const rows = res.data.values || [];
-  return rows.map((row) => ({
-    caption: row[0] || "",
-    image: row[1] || "",
-    link: row[2] || "",
-  }));
+    const randomIndex = Math.floor(Math.random() * (rows.length - 1)) + 1;
+    const [caption, imageUrl, link] = rows[randomIndex];
+    return { caption, imageUrl, link };
+  } catch (err) {
+    console.error("❌ Error reading Google Sheet:", err.message);
+    return null;
+  }
 }
 
-// Generate AI caption with Gemini
-async function generateCaption(baseText) {
+// --- Function to enhance text using Gemini AI ---
+async function enhanceTextWithGemini(text) {
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+    const res = await axios.post(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + GEMINI_API_KEY,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: `Make this ad post more engaging for social media:\n\n${baseText}` },
-              ],
-            },
-          ],
-        }),
+        contents: [
+          {
+            parts: [{ text: `Improve this advertisement text professionally:\n\n${text}` }],
+          },
+        ],
       }
     );
-    const data = await response.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || baseText;
+    return res.data.candidates?.[0]?.content?.parts?.[0]?.text || text;
   } catch (err) {
-    console.error("Gemini error:", err);
-    return baseText;
+    console.error("⚠️ Gemini enhancement failed:", err.message);
+    return text;
   }
 }
 
-// Post to Facebook
-async function postToFacebook(caption, imageUrl, linkUrl) {
-  const postUrl = `https://graph.facebook.com/v19.0/${FACEBOOK_PAGE_ID}/photos`;
-  const formData = new URLSearchParams();
-  formData.append("url", imageUrl);
-  formData.append(
-    "caption",
-    linkUrl ? `${caption}\n\nLearn more: ${linkUrl}` : caption
-  );
-  formData.append("access_token", FACEBOOK_ACCESS_TOKEN);
-
-  const response = await fetch(postUrl, {
-    method: "POST",
-    body: formData,
-  });
-
-  return await response.json();
-}
-
-// =============================
-// 🔹 ROUTES
-// =============================
-
-// Health check
-app.get("/", (req, res) => {
-  res.send("✅ Facebook Auto Poster is running!");
-});
-
-// Manual trigger to post ads
-app.get("/autopost", async (req, res) => {
+// --- Function to post to Facebook ---
+async function postToFacebook(caption, imageUrl, link) {
   try {
-    const rows = await getSheetData();
-    if (rows.length === 0) return res.json({ error: "No data found in Sheet." });
+    const fullCaption = link ? `${caption}\n\nLearn more: ${link}` : caption;
 
-    const { caption, image, link } = rows[Math.floor(Math.random() * rows.length)];
-    const aiCaption = await generateCaption(caption);
-    const result = await postToFacebook(aiCaption, image, link);
+    const res = await axios.post(
+      `https://graph.facebook.com/v19.0/me/photos`,
+      {
+        url: imageUrl,
+        caption: fullCaption,
+        access_token: FB_PAGE_ACCESS_TOKEN,
+      }
+    );
 
-    res.json({ message: "Posted successfully!", post: result });
+    if (res.data.post_id) {
+      console.log("✅ Successfully posted to Facebook:", res.data.post_id);
+    } else {
+      console.log("⚠️ Post result:", res.data);
+    }
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("❌ Facebook posting failed:", err.response?.data || err.message);
   }
+}
+
+// --- Auto posting logic ---
+async function autoPost() {
+  console.log("⏳ Running auto-post...");
+  const row = await getRandomSheetRow();
+  if (!row) return console.log("❌ No data from sheet.");
+
+  const enhancedText = await enhanceTextWithGemini(row.caption);
+  await postToFacebook(enhancedText, row.imageUrl, row.link);
+}
+
+// --- Manual trigger ---
+app.get("/autopost", async (req, res) => {
+  await autoPost();
+  res.send("✅ Auto post executed manually!");
 });
 
-// =============================
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// --- Schedule every 4 hours ---
+setInterval(autoPost, 4 * 60 * 60 * 1000);
+
+// --- Keep alive endpoint ---
+app.get("/", (req, res) => res.send("🚀 Converge Auto Poster running..."));
+
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
