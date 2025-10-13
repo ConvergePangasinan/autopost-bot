@@ -1,9 +1,9 @@
 // ===============================================
 // 🚀 Converge Autopost Bot - Server
-// Version: v3.2.0
+// Version: v3.2.1 (Render-ready)
 // Updated: Oct 2025
 // Author: Edward + Assistant
-// Notes: Weekly log cleanup (delete everything in /logs), self-ping, Gemini + Sheets + FB posting.
+// Notes: Self-ping, Gemini + Sheets + FB posting, weekly log cleanup.
 // ===============================================
 
 import express from "express";
@@ -14,31 +14,20 @@ import { JWT } from "google-auth-library";
 import dotenv from "dotenv";
 import fs from "fs/promises";
 import path from "path";
-import https from "https";
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// ---------- Version info ----------
-const VERSION = "v3.2.0";
+const VERSION = "v3.2.1";
 const UPDATED = "Oct 2025";
 
 // ---------- Logs directory ----------
 const LOGS_DIR = path.join(process.cwd(), "logs");
+await fs.mkdir(LOGS_DIR, { recursive: true }).catch(() => {});
 
-// ensure logs folder exists at startup
-async function ensureLogsDir() {
-  try {
-    await fs.mkdir(LOGS_DIR, { recursive: true });
-  } catch (err) {
-    console.error("Could not create logs dir:", err?.message || err);
-  }
-}
-ensureLogsDir();
-
-// ---------- Converge Plan Data (updated) ----------
+// ---------- Converge Plans ----------
 const CONVERGE_PLANS = [
   // BIDA
   { name: "BIDA Fiber Plan 888", speed: "up to 75 Mbps", price: "₱888/month", features: ["Unlimited Internet", "Up to 8 devices", "Budget-friendly"] },
@@ -49,9 +38,9 @@ const CONVERGE_PLANS = [
   { name: "Super FiberX Max", speed: "up to 400 Mbps", price: "₱1,599/month", features: ["HD streaming & gaming", "WiFi 6 Next Gen Modem"] },
   { name: "Super FiberX Ultra", speed: "up to 800 Mbps", price: "₱2,599/month", features: ["4K streaming", "Powerful for smart homes"] },
 
-  // Netflix bundles
+  // Netflix Bundles
   { name: "Plan 1798 (Netflix Basic)", speed: "up to 400 Mbps", price: "₱1,798/month", features: ["Netflix Basic", "Xperience Hub", "WiFi-6 modem"] },
-  { name: "Plan 1998 (Netflix Std)", speed: "up to 500 Mbps", price: "₱1,998/month", features: ["Netflix Standard", "Xperience Hub", "WiFi-6 modem"] },
+  { name: "Plan 1998 (Netflix Standard)", speed: "up to 500 Mbps", price: "₱1,998/month", features: ["Netflix Standard", "Xperience Hub", "WiFi-6 modem"] },
   { name: "Plan 2298 (Netflix Premium)", speed: "up to 600 Mbps", price: "₱2,298/month", features: ["Netflix Premium", "Xperience Hub", "WiFi-6 modem"] },
 
   // GameChanger
@@ -72,32 +61,27 @@ const serviceAccountAuth = new JWT({
 });
 const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID);
 
-// helper to log into local logs file (not necessary but helpful)
+// ---------- Helpers ----------
 async function writeLocalLog(line) {
-  try {
-    await ensureLogsDir();
-    const file = path.join(LOGS_DIR, "out.log");
-    const stamp = new Date().toISOString();
-    await fs.appendFile(file, `[${stamp}] ${line}\n`);
-  } catch (e) {
-    console.error("writeLocalLog error:", e?.message || e);
-  }
+  const file = path.join(LOGS_DIR, "out.log");
+  const stamp = new Date().toISOString();
+  await fs.appendFile(file, `[${stamp}] ${line}\n`).catch(() => {});
 }
 
-// ---------- Gemini content generator (uses Gemini API key param) ----------
+// ---------- Gemini content generator ----------
 async function generateContent(baseText = "Converge Internet", attempt = 1) {
   try {
-    const randomLang = Math.random() > 0.5 ? "Taglish" : "English";
+    const lang = Math.random() > 0.5 ? "Taglish" : "English";
     const plan = CONVERGE_PLANS[Math.floor(Math.random() * CONVERGE_PLANS.length)];
 
     const prompt = `
-Create a short, engaging Facebook post in ${randomLang}.
+Create a short, engaging Facebook post in ${lang}.
 Topic: ${baseText}
-Highlight plan: ${plan.name} (${plan.speed}, ${plan.price})
-Key features: ${plan.features.join(", ")}.
-Add emojis and a friendly conversational tone.
+Highlight: ${plan.name} (${plan.speed}, ${plan.price})
+Features: ${plan.features.join(", ")}.
+Add emojis and friendly tone.
 End with: "Apply here 👉 https://convergepangasinan.github.io/BidaFiberX/"
-Avoid repeating older content. Keep it natural and unique.
+Avoid duplicate phrasing.
     `;
 
     const res = await axios.post(
@@ -111,17 +95,11 @@ Avoid repeating older content. Keep it natural and unique.
     );
 
     const content = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (content) {
-      await writeLocalLog("Generated content via Gemini");
-      return content;
-    }
-    throw new Error("No candidate text returned");
+    if (content) return content;
+    throw new Error("No candidate text");
   } catch (err) {
-    console.error(`Gemini error (attempt ${attempt}):`, err?.response?.data || err?.message || err);
-    if (attempt < 2) {
-      await writeLocalLog("Gemini retry");
-      return generateContent(baseText, attempt + 1);
-    }
+    console.error("Gemini error:", err?.response?.data || err?.message);
+    if (attempt < 2) return generateContent(baseText, attempt + 1);
     return "Converge Fiber Internet — Fast, reliable, and affordable connection!";
   }
 }
@@ -132,97 +110,75 @@ async function saveToSheet(content, source = "Gemini") {
     await doc.useServiceAccountAuth(serviceAccountAuth);
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
-    await sheet.addRow({ Timestamp: new Date().toLocaleString("en-PH"), Source: source, Content: content });
-    await writeLocalLog("Saved to Google Sheet");
+    await sheet.addRow({
+      Timestamp: new Date().toLocaleString("en-PH"),
+      Source: source,
+      Content: content
+    });
   } catch (err) {
-    console.error("Google Sheets Error:", err?.message || err);
-    await writeLocalLog("Failed to save to Google Sheet: " + (err?.message || err));
+    console.error("Sheets Error:", err?.message);
   }
 }
 
-// ---------- Facebook post ----------
+// ---------- Facebook Post ----------
 async function postToFacebook(content) {
   try {
-    const pageId = process.env.FB_PAGE_ID;
-    const token = process.env.FB_PAGE_ACCESS_TOKEN;
-    const res = await axios.post(`https://graph.facebook.com/${pageId}/feed`, { message: content, access_token: token });
-    await writeLocalLog("Posted to Facebook: " + JSON.stringify(res.data).slice(0, 200));
+    const res = await axios.post(
+      `https://graph.facebook.com/${process.env.FB_PAGE_ID}/feed`,
+      { message: content, access_token: process.env.FB_PAGE_ACCESS_TOKEN }
+    );
+    await writeLocalLog("FB post success");
     return res.data;
   } catch (err) {
-    console.error("Facebook Post Error:", err?.response?.data || err?.message || err);
-    await writeLocalLog("Facebook Post Error: " + (err?.message || JSON.stringify(err?.response?.data || "")));
-    return null;
+    console.error("FB Post Error:", err?.response?.data || err?.message);
   }
 }
 
-// ---------- Main auto-generate & post (2 contents every 3 hours: 1 post + 1 reserve) ----------
+// ---------- Main Job ----------
 async function autoGenerateAndPost() {
   console.log("🕒 Running autoGenerateAndPost...");
-  await writeLocalLog("Auto job started");
   for (let i = 0; i < 2; i++) {
     const content = await generateContent();
-    await saveToSheet(content, "Gemini");
-    if (i === 0) {
-      await postToFacebook(content);
-    } else {
-      console.log("💾 Reserve saved.");
-    }
+    await saveToSheet(content);
+    if (i === 0) await postToFacebook(content);
   }
 }
 
-// ---------- Draft-only generator (optional) — every 5 minutes saves drafts to sheet ----------
+// ---------- Draft Job ----------
 async function autoDraft() {
-  try {
-    const content = await generateContent("Draft Content Update");
-    await saveToSheet(content, "AutoDraft");
-    await writeLocalLog("Auto-draft saved");
-  } catch (e) {
-    console.error("AutoDraft error:", e?.message || e);
-  }
+  const content = await generateContent("Draft update");
+  await saveToSheet(content, "AutoDraft");
 }
 
-// ---------- Weekly log cleanup — delete everything inside /logs/ (Sunday 00:00) ----------
+// ---------- Log Cleanup ----------
 async function cleanupLogs() {
-  try {
-    await writeLocalLog("Log cleanup starting");
-    // remove everything inside LOGS_DIR (but not the directory itself)
-    const files = await fs.readdir(LOGS_DIR).catch(() => []);
-    for (const f of files) {
-      const full = path.join(LOGS_DIR, f);
-      await fs.rm(full, { recursive: true, force: true }).catch(() => {});
-    }
-    // create an empty out.log so PM2 has a file to write immediately
-    await fs.writeFile(path.join(LOGS_DIR, "out.log"), `Log cleaned at ${new Date().toISOString()}\n`);
-    await writeLocalLog("Log cleanup completed");
-    console.log("🧹 Log cleanup completed (removed all files in /logs/).");
-  } catch (err) {
-    console.error("Log cleanup error:", err?.message || err);
-  }
+  const files = await fs.readdir(LOGS_DIR).catch(() => []);
+  for (const f of files) await fs.rm(path.join(LOGS_DIR, f), { force: true });
+  await fs.writeFile(path.join(LOGS_DIR, "out.log"), `Cleaned: ${new Date().toISOString()}\n`);
+  console.log("🧹 Logs cleaned.");
 }
 
-// ---------- Cron schedules ----------
-cron.schedule("0 */3 * * *", autoGenerateAndPost); // every 3 hours
-cron.schedule("*/5 * * * *", autoDraft); // every 5 minutes (draft-only)
-cron.schedule("*/10 * * * *", async () => { // self-ping every 10 minutes
+// ---------- Cron Jobs ----------
+cron.schedule("0 */3 * * *", autoGenerateAndPost);
+cron.schedule("*/5 * * * *", autoDraft);
+cron.schedule("*/10 * * * *", async () => {
   try {
-    const url = process.env.KEEPALIVE_URL || process.env.RENDER_URL || `https://${process.env.RENDER_SERVICE_DOMAIN || "autopost-bot-m222.onrender.com"}/ping`;
+    const url = process.env.KEEPALIVE_URL || `https://${process.env.RENDER_EXTERNAL_URL || "autopost-bot-m222.onrender.com"}/ping`;
     await axios.get(url);
-    await writeLocalLog("Self-ping to " + url);
   } catch (err) {
-    console.error("Self-ping failed:", err?.message || err);
+    console.error("Ping fail:", err.message);
   }
 });
-cron.schedule("0 0 * * 0", cleanupLogs); // every Sunday 00:00
+cron.schedule("0 0 * * 0", cleanupLogs);
 
 // ---------- Routes ----------
 app.get("/", (req, res) => res.send(`🚀 Autopost Bot running - ${VERSION}`));
 app.get("/ping", (req, res) => res.send("✅ OK - Server awake"));
-app.get("/health", (req, res) => res.send({ status: "healthy", version: VERSION, updated: UPDATED }));
-app.get("/version", (req, res) => res.json({ version: VERSION, updated: UPDATED }));
+app.get("/health", (req, res) => res.json({ status: "healthy", version: VERSION, updated: UPDATED }));
 
 app.get("/test", async (req, res) => {
   const content = await generateContent("Test Converge Ad");
-  res.send({ testContent: content });
+  res.json({ testContent: content });
 });
 
 app.get("/manual-post", async (req, res) => {
@@ -232,8 +188,6 @@ app.get("/manual-post", async (req, res) => {
   res.send("✅ Manual post sent!");
 });
 
-// ---------- startup ----------
+// ---------- Start Server ----------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT} (version ${VERSION})`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} (${VERSION})`));
