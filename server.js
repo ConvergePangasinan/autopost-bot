@@ -185,6 +185,34 @@ app.get("/sheet-test", async (req, res) => {
   }
 });
 
+// 🧪 TEST BOT ROUTE
+import { google } from 'googleapis';
+import runAutopost from './src/autopost/runAutopost.js'; // adjust path if needed
+import { SHEET_ID } from './config.js'; // optional if you have config
+
+app.get('/test-bot', async (req, res) => {
+  try {
+    // Check Google Sheets connection
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const sheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+
+    console.log('✅ Google Sheets Connected:', sheet.data.properties.title);
+
+    // Run test autopost
+    await runAutopost(true); // optional flag for test mode
+    console.log('✅ Test Autopost Executed');
+
+    res.send('✅ BOT TEST PASSED — Sheets OK & Autopost OK');
+  } catch (err) {
+    console.error('❌ BOT TEST FAILED:', err.message);
+    res.status(500).send(`❌ BOT TEST FAILED: ${err.message}`);
+  }
+});
+
 // ---------- Start Server ----------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} (${VERSION})`));
