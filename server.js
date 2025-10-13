@@ -62,7 +62,7 @@ Avoid duplicate phrasing.
 
     // ✅ updated Gemini API endpoint
     const res = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",,
       { contents: [{ parts: [{ text: prompt }] }] },
       {
         headers: { "Content-Type": "application/json" },
