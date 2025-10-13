@@ -1,6 +1,6 @@
 // ===============================================
 // 🚀 Converge Autopost Bot - Server
-// Version: v3.2.3 (Render-ready, fixed Sheets Auth + Gemini endpoint)
+// Version: v3.2.4 (Render-ready, fixed Sheets Auth + Gemini endpoint)
 // Updated: Oct 2025
 // Author: Edward + Assistant
 // ===============================================
@@ -20,7 +20,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-const VERSION = "v3.2.3";
+const VERSION = "v3.2.4";
 const UPDATED = "Oct 2025";
 
 // ---------- Logs directory ----------
@@ -34,7 +34,7 @@ const serviceAccountAuth = new JWT({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"]
 });
 
-// ✅ new v4+ compatible auth setup
+// ✅ single consistent method for Sheets
 const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
 
 // ---------- Helpers ----------
@@ -60,9 +60,9 @@ End with: "Apply here 👉 https://convergepangasinan.github.io/BidaFiberX/"
 Avoid duplicate phrasing.
     `;
 
-    // ✅ updated Gemini API endpoint
+    // ✅ fixed comma and updated Gemini endpoint
     const res = await axios.post(
-      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent"
+      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent",
       { contents: [{ parts: [{ text: prompt }] }] },
       {
         headers: { "Content-Type": "application/json" },
@@ -84,7 +84,6 @@ Avoid duplicate phrasing.
 // ---------- Save to Google Sheets ----------
 async function saveToSheet(content, source = "Gemini") {
   try {
-    doc.auth = serviceAccountAuth; // ✅ fixed auth method
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     await sheet.addRow({
@@ -140,7 +139,9 @@ cron.schedule("0 */3 * * *", autoGenerateAndPost);
 cron.schedule("*/5 * * * *", autoDraft);
 cron.schedule("*/10 * * * *", async () => {
   try {
-    const url = process.env.KEEPALIVE_URL || `https://${process.env.RENDER_EXTERNAL_URL || "autopost-bot-m222.onrender.com"}/ping`;
+    const url =
+      process.env.KEEPALIVE_URL ||
+      `https://${process.env.RENDER_EXTERNAL_URL || "autopost-bot-m222.onrender.com"}/ping`;
     await axios.get(url);
   } catch (err) {
     console.error("Ping fail:", err.message);
@@ -167,10 +168,9 @@ app.get("/manual-post", async (req, res) => {
   res.send("✅ Manual post sent!");
 });
 
-// ✅ NEW: Google Sheets connection test
+// ✅ Google Sheets connection test
 app.get("/sheet-test", async (req, res) => {
   try {
-    doc.auth = serviceAccountAuth;
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     await sheet.addRow({
@@ -182,33 +182,6 @@ app.get("/sheet-test", async (req, res) => {
   } catch (err) {
     console.error("Sheets Test Error:", err.message);
     res.status(500).send(`❌ Sheets Test Failed: ${err.message}`);
-  }
-});
-
-// 🧪 TEST BOT ROUTE (no autopost.js needed)
-import { google } from 'googleapis';
-
-app.get('/test-bot', async (req, res) => {
-  try {
-    // ✅ Check Google Sheets access
-    const auth = new google.auth.GoogleAuth({
-      credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-
-    const sheets = google.sheets({ version: 'v4', auth });
-    const spreadsheetId = process.env.SHEET_ID; // make sure you set this in Render environment
-
-    const sheet = await sheets.spreadsheets.get({ spreadsheetId });
-    console.log(`✅ Connected to Google Sheets: ${sheet.data.properties.title}`);
-
-    // ✅ Confirm bot server is active
-    console.log('✅ Bot server is running and responding.');
-
-    res.send(`✅ BOT TEST PASSED — Connected to ${sheet.data.properties.title}`);
-  } catch (err) {
-    console.error('❌ BOT TEST FAILED:', err);
-    res.status(500).send(`❌ BOT TEST FAILED: ${err.message}`);
   }
 });
 
