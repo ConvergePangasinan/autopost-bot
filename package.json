@@ -1,39 +1,38 @@
 {
-  "name": "converge-autopost-bot",
-  "version": "3.0.0",
-  "description": "🤖 Auto Facebook poster for Converge plans with Google Sheets logging and Gemini AI text generation.",
+  "name": "converge-autopost-server",
+  "version": "3.2.0",
+  "description": "Converge Autopost Bot - Gemini + Sheets + Facebook Auto Poster",
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "pm2-runtime ecosystem.config.js --env production",
+    "start": "node server.js",
     "dev": "nodemon server.js",
-    "clean": "rm -rf logs/*"
+    "test": "node server.js --test"
   },
   "dependencies": {
-    "axios": "^1.7.3",
-    "cron": "^3.1.0",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "google-auth-library": "^9.10.0",
+    "axios": "^1.7.7",
+    "cron": "^3.1.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "google-auth-library": "^9.14.2",
     "google-spreadsheet": "^4.1.2",
-    "node-cron": "^3.0.3"
+    "https": "^1.0.0",
+    "path": "^0.12.7"
   },
   "devDependencies": {
-    "nodemon": "^3.1.4",
-    "pm2": "^5.4.2"
+    "nodemon": "^3.1.7"
   },
   "engines": {
-    "node": ">=18.x"
+    "node": ">=18.0.0"
   },
   "keywords": [
-    "Converge",
+    "converge",
     "autopost",
-    "Facebook",
-    "Gemini",
-    "Google Sheets",
+    "facebook",
+    "gemini",
     "bot",
-    "automation"
+    "render"
   ],
-  "author": "Edward John Paulo",
+  "author": "Edward + Assistant",
   "license": "MIT"
 }
