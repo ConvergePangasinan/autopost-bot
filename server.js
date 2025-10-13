@@ -1,9 +1,8 @@
 // ===============================================
 // 🚀 Converge Autopost Bot - Server
-// Version: v3.2.2 (Render-ready, modular plans)
+// Version: v3.2.3 (Render-ready, fixed Sheets Auth + Gemini endpoint)
 // Updated: Oct 2025
 // Author: Edward + Assistant
-// Notes: Self-ping, Gemini + Sheets + FB posting, weekly log cleanup.
 // ===============================================
 
 import express from "express";
@@ -21,7 +20,7 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-const VERSION = "v3.2.2";
+const VERSION = "v3.2.3";
 const UPDATED = "Oct 2025";
 
 // ---------- Logs directory ----------
@@ -34,7 +33,9 @@ const serviceAccountAuth = new JWT({
   key: (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"]
 });
-const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID);
+
+// ✅ new v4+ compatible auth setup
+const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
 
 // ---------- Helpers ----------
 async function writeLocalLog(line) {
@@ -59,8 +60,9 @@ End with: "Apply here 👉 https://convergepangasinan.github.io/BidaFiberX/"
 Avoid duplicate phrasing.
     `;
 
+    // ✅ updated Gemini API endpoint
     const res = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
       { contents: [{ parts: [{ text: prompt }] }] },
       {
         headers: { "Content-Type": "application/json" },
@@ -82,7 +84,7 @@ Avoid duplicate phrasing.
 // ---------- Save to Google Sheets ----------
 async function saveToSheet(content, source = "Gemini") {
   try {
-    await doc.useServiceAccountAuth(serviceAccountAuth);
+    doc.auth = serviceAccountAuth; // ✅ fixed auth method
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     await sheet.addRow({
@@ -151,16 +153,36 @@ app.get("/", (req, res) => res.send(`🚀 Autopost Bot running - ${VERSION}`));
 app.get("/ping", (req, res) => res.send("✅ OK - Server awake"));
 app.get("/health", (req, res) => res.json({ status: "healthy", version: VERSION, updated: UPDATED }));
 
+// ✅ test route for Gemini output
 app.get("/test", async (req, res) => {
   const content = await generateContent("Test Converge Ad");
   res.json({ testContent: content });
 });
 
+// ✅ manual post trigger
 app.get("/manual-post", async (req, res) => {
   const content = await generateContent("Manual post trigger");
   await postToFacebook(content);
   await saveToSheet(content, "Manual");
   res.send("✅ Manual post sent!");
+});
+
+// ✅ NEW: Google Sheets connection test
+app.get("/sheet-test", async (req, res) => {
+  try {
+    doc.auth = serviceAccountAuth;
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    await sheet.addRow({
+      Timestamp: new Date().toLocaleString("en-PH"),
+      Source: "Sheet Test",
+      Content: "✅ Sheet Test Successful"
+    });
+    res.send("✅ Google Sheets connected and test row added!");
+  } catch (err) {
+    console.error("Sheets Test Error:", err.message);
+    res.status(500).send(`❌ Sheets Test Failed: ${err.message}`);
+  }
 });
 
 // ---------- Start Server ----------
