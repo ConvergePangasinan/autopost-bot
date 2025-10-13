@@ -13,7 +13,7 @@ import { JWT } from "google-auth-library";
 import dotenv from "dotenv";
 import fs from "fs/promises";
 import path from "path";
-import { CONVERGE_PLANS } from "./plans/convergePlans.js"; // ✅ imported plans
+import { CONVERGE_PLANS } from "./convergePlans.js"; // ✅ imported plans
 
 dotenv.config();
 
