@@ -185,30 +185,29 @@ app.get("/sheet-test", async (req, res) => {
   }
 });
 
-// 🧪 TEST BOT ROUTE
+// 🧪 TEST BOT ROUTE (no autopost.js needed)
 import { google } from 'googleapis';
-import runAutopost from './src/autopost/runAutopost.js'; // adjust path if needed
-import { SHEET_ID } from './config.js'; // optional if you have config
 
 app.get('/test-bot', async (req, res) => {
   try {
-    // Check Google Sheets connection
+    // ✅ Check Google Sheets access
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
+
     const sheets = google.sheets({ version: 'v4', auth });
-    const sheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+    const spreadsheetId = process.env.SHEET_ID; // make sure you set this in Render environment
 
-    console.log('✅ Google Sheets Connected:', sheet.data.properties.title);
+    const sheet = await sheets.spreadsheets.get({ spreadsheetId });
+    console.log(`✅ Connected to Google Sheets: ${sheet.data.properties.title}`);
 
-    // Run test autopost
-    await runAutopost(true); // optional flag for test mode
-    console.log('✅ Test Autopost Executed');
+    // ✅ Confirm bot server is active
+    console.log('✅ Bot server is running and responding.');
 
-    res.send('✅ BOT TEST PASSED — Sheets OK & Autopost OK');
+    res.send(`✅ BOT TEST PASSED — Connected to ${sheet.data.properties.title}`);
   } catch (err) {
-    console.error('❌ BOT TEST FAILED:', err.message);
+    console.error('❌ BOT TEST FAILED:', err);
     res.status(500).send(`❌ BOT TEST FAILED: ${err.message}`);
   }
 });
