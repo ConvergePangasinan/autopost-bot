@@ -1,19 +1,36 @@
 {
-  "name": "autopost-bot",
-  "version": "1.0.0",
-  "description": "Converge auto posting bot with Google Sheets + Gemini integration",
+  "name": "converge-autopost-bot",
+  "version": "2.5.0",
+  "description": "Converge AutoPost Bot - AI content generator and auto Facebook poster with Google Sheets logging.",
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "ping": "node ping.js"
+    "start": "pm2-runtime start server.js --name autopost-bot",
+    "dev": "node server.js"
   },
   "dependencies": {
-    "axios": "^1.6.0",
+    "axios": "^1.7.2",
+    "cron": "^3.1.6",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "google-spreadsheet": "^4.0.2",
+    "google-auth-library": "^9.15.0",
+    "google-spreadsheet": "^4.1.2",
     "node-cron": "^3.0.3",
-    "dotenv": "^16.3.1",
-    "node-fetch": "^3.3.2"
-  }
+    "pm2": "^5.4.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "converge",
+    "facebook",
+    "auto-post",
+    "gemini",
+    "google-sheets",
+    "express",
+    "pm2",
+    "node-cron"
+  ],
+  "author": "Edward John Paulo",
+  "license": "MIT"
 }
