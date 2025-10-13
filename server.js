@@ -1,6 +1,6 @@
 // ===============================================
 // 🚀 Converge Autopost Bot - Server
-// Version: v3.2.4 (Render-ready, fixed Sheets Auth + Gemini endpoint)
+// Version: v3.2.4 (Render-ready, Gemini Free API + Sheets fix)
 // Updated: Oct 2025
 // Author: Edward + Assistant
 // ===============================================
@@ -13,7 +13,8 @@ import { JWT } from "google-auth-library";
 import dotenv from "dotenv";
 import fs from "fs/promises";
 import path from "path";
-import { CONVERGE_PLANS } from "./convergePlans.js"; // ✅ imported plans
+import { google } from "googleapis";
+import { CONVERGE_PLANS } from "./convergePlans.js";
 
 dotenv.config();
 
@@ -27,24 +28,24 @@ const UPDATED = "Oct 2025";
 const LOGS_DIR = path.join(process.cwd(), "logs");
 await fs.mkdir(LOGS_DIR, { recursive: true }).catch(() => {});
 
-// ---------- Google Sheets Setup ----------
+// ---------- Google Sheets Auth ----------
 const serviceAccountAuth = new JWT({
   email: process.env.GOOGLE_CLIENT_EMAIL,
+  // ✅ properly handle multiline key (important for Render)
   key: (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"]
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// ✅ single consistent method for Sheets
 const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
 
-// ---------- Helpers ----------
+// ---------- Helper: Write local logs ----------
 async function writeLocalLog(line) {
   const file = path.join(LOGS_DIR, "out.log");
   const stamp = new Date().toISOString();
   await fs.appendFile(file, `[${stamp}] ${line}\n`).catch(() => {});
 }
 
-// ---------- Gemini content generator ----------
+// ---------- Gemini (Free API, v1beta) ----------
 async function generateContent(baseText = "Converge Internet", attempt = 1) {
   try {
     const lang = Math.random() > 0.5 ? "Taglish" : "English";
@@ -60,14 +61,14 @@ End with: "Apply here 👉 https://convergepangasinan.github.io/BidaFiberX/"
 Avoid duplicate phrasing.
     `;
 
-    // ✅ fixed comma and updated Gemini endpoint
+    // ✅ fixed endpoint for Gemini Free API
     const res = await axios.post(
-      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
       { contents: [{ parts: [{ text: prompt }] }] },
       {
         headers: { "Content-Type": "application/json" },
         params: { key: process.env.GEMINI_API_KEY },
-        timeout: 15000
+        timeout: 15000,
       }
     );
 
@@ -84,12 +85,13 @@ Avoid duplicate phrasing.
 // ---------- Save to Google Sheets ----------
 async function saveToSheet(content, source = "Gemini") {
   try {
+    doc.auth = serviceAccountAuth;
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     await sheet.addRow({
       Timestamp: new Date().toLocaleString("en-PH"),
       Source: source,
-      Content: content
+      Content: content,
     });
   } catch (err) {
     console.error("Sheets Error:", err?.message);
@@ -154,13 +156,13 @@ app.get("/", (req, res) => res.send(`🚀 Autopost Bot running - ${VERSION}`));
 app.get("/ping", (req, res) => res.send("✅ OK - Server awake"));
 app.get("/health", (req, res) => res.json({ status: "healthy", version: VERSION, updated: UPDATED }));
 
-// ✅ test route for Gemini output
+// ✅ Gemini test route
 app.get("/test", async (req, res) => {
   const content = await generateContent("Test Converge Ad");
   res.json({ testContent: content });
 });
 
-// ✅ manual post trigger
+// ✅ Manual post trigger
 app.get("/manual-post", async (req, res) => {
   const content = await generateContent("Manual post trigger");
   await postToFacebook(content);
@@ -171,17 +173,42 @@ app.get("/manual-post", async (req, res) => {
 // ✅ Google Sheets connection test
 app.get("/sheet-test", async (req, res) => {
   try {
+    doc.auth = serviceAccountAuth;
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     await sheet.addRow({
       Timestamp: new Date().toLocaleString("en-PH"),
       Source: "Sheet Test",
-      Content: "✅ Sheet Test Successful"
+      Content: "✅ Sheet Test Successful",
     });
     res.send("✅ Google Sheets connected and test row added!");
   } catch (err) {
     console.error("Sheets Test Error:", err.message);
     res.status(500).send(`❌ Sheets Test Failed: ${err.message}`);
+  }
+});
+
+// ✅ Test-bot (Sheets & Server check)
+app.get("/test-bot", async (req, res) => {
+  try {
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        private_key: (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+      },
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+
+    const sheets = google.sheets({ version: "v4", auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    const sheet = await sheets.spreadsheets.get({ spreadsheetId });
+    console.log(`✅ Connected to Google Sheets: ${sheet.data.properties.title}`);
+
+    res.send(`✅ BOT TEST PASSED — Connected to ${sheet.data.properties.title}`);
+  } catch (err) {
+    console.error("❌ BOT TEST FAILED:", err);
+    res.status(500).send(`❌ BOT TEST FAILED: ${err.message}`);
   }
 });
 
