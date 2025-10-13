@@ -1,36 +1,30 @@
 {
   "name": "converge-autopost-bot",
-  "version": "2.5.0",
-  "description": "Converge AutoPost Bot - AI content generator and auto Facebook poster with Google Sheets logging.",
+  "version": "3.2.0",
+  "description": "Converge Autopost Bot - Gemini + Google Sheets + Facebook posting (production-ready)",
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "pm2-runtime start server.js --name autopost-bot",
-    "dev": "node server.js"
+    "start": "pm2-runtime ecosystem.config.js --env production",
+    "dev": "node server.js",
+    "logs": "pm2 logs converge-autopost-bot",
+    "restart": "pm2 restart converge-autopost-bot"
   },
   "dependencies": {
-    "axios": "^1.7.2",
-    "cron": "^3.1.6",
+    "axios": "^1.7.4",
+    "cron": "^3.1.7",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "express": "^4.18.2",
     "google-auth-library": "^9.15.0",
-    "google-spreadsheet": "^4.1.2",
-    "node-cron": "^3.0.3",
+    "google-spreadsheet": "^4.1.3",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
     "pm2": "^5.4.2"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": [
-    "converge",
-    "facebook",
-    "auto-post",
-    "gemini",
-    "google-sheets",
-    "express",
-    "pm2",
-    "node-cron"
-  ],
   "author": "Edward John Paulo",
   "license": "MIT"
 }
