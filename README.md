@@ -1,29 +1,18 @@
-# Autopost Bot v2 - Final ZIP
+# 🚀 Converge AutoPost Bot (v3.4.0)
 
-Files:
-- server.js
-- package.json
-- .env.example
-- README.md
+An automated Facebook posting server connected to Google Sheets — now in **Manual Mode** (no AI).  
+Each post comes directly from your spreadsheet rows.
 
-Deploy to Render:
-1. Create a GitHub repo and push files (do NOT commit secrets).
-2. In Render, create a Web Service connected to your repo.
-3. Add environment variables in Render dashboard; use .env.example as guide.
-   - Put the full service account JSON into GOOGLE_SERVICE_KEY (one-line JSON string).
-   - Set SELF_URL to your Render URL (e.g., https://autopost-bot-m222.onrender.com).
-4. Deploy.
-5. Use BetterStack (3 min) and UptimeRobot (5 min) to ping /ping and /health as desired.
+---
 
-Manual endpoints:
-- GET /ping
-- GET /health
-- GET /generate
-- GET /post
-- GET /status
-- GET /logs
+## ⚙️ Features
+- ✅ Fetches content from a connected Google Sheet
+- ✅ Automatically posts to your Facebook Page
+- ✅ Logs every successful post with ID
+- ✅ Includes `/test-all` diagnostic endpoint
+- ✅ Render-ready (auto keep-alive ping every 10 minutes)
 
-Notes:
-- Share your Google Sheet with the service account email (editor).
-- Facebook token must be a Page Access Token with pages_manage_posts permission.
+---
+
+## 📁 Folder Structure- Facebook token must be a Page Access Token with pages_manage_posts permission.
 - If you want, I can create the GitHub repo and push these files for you.
