@@ -5,15 +5,11 @@
 
 import { google } from "googleapis";
 
-// ===============================================
-// 🧩 REGISTER TEST ROUTES
-// ===============================================
 export function registerTestRoutes(app, doc, serviceAccountAuth, generateContentFn) {
-  // 🩺 Health / Version Route
+  // Health / version info
   app.get("/health", (req, res) => {
     const now = new Date();
     const phTime = now.toLocaleString("en-PH", { timeZone: "Asia/Manila" });
-
     res.json({
       status: "healthy",
       version: "v3.4.0",
@@ -22,7 +18,7 @@ export function registerTestRoutes(app, doc, serviceAccountAuth, generateContent
     });
   });
 
-  // 🧾 Google Sheets Test
+  // Google Sheets test
   app.get("/test-bot", async (req, res) => {
     try {
       const clientEmail =
@@ -30,14 +26,14 @@ export function registerTestRoutes(app, doc, serviceAccountAuth, generateContent
       const privateKey = (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
       const sheetId = process.env.GOOGLE_SHEET_ID;
 
-      if (!clientEmail || !privateKey || !sheetId)
-        throw new Error("❌ Missing Google Sheets credentials");
+      if (!clientEmail || !privateKey || !sheetId) {
+        throw new Error("Missing Google Sheets credentials");
+      }
 
       const auth = new google.auth.GoogleAuth({
         credentials: { client_email: clientEmail, private_key: privateKey },
         scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
       });
-
       const sheets = google.sheets({ version: "v4", auth });
       const sheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
 
@@ -47,18 +43,18 @@ export function registerTestRoutes(app, doc, serviceAccountAuth, generateContent
     }
   });
 
-  // 🤖 Gemini Test
+  // Gemini test
   app.get("/test-gemini", async (req, res) => {
     try {
-      const result = await generateContentFn("Say hello from Converge Autopost Bot!");
-      res.send(`✅ Gemini Working: ${result}`);
+      const out = await generateContentFn("Say hello from Converge Autopost Bot!");
+      res.send(`✅ Gemini Working: ${out}`);
     } catch (err) {
-      console.error("Gemini test error:", err.response?.data || err.message);
+      console.error("❌ test-gemini error:", err.response?.data || err.message);
       res.status(500).send(`❌ Gemini Test Failed: ${err.message}`);
     }
   });
 
-  // 📘 Facebook Test
+  // Facebook test
   app.get("/test-fb", async (req, res) => {
     try {
       const pageId = process.env.FB_PAGE_ID || process.env.PAGE_ID;
@@ -67,34 +63,38 @@ export function registerTestRoutes(app, doc, serviceAccountAuth, generateContent
       const r = await fetch(`https://graph.facebook.com/${pageId}?access_token=${token}`);
       const json = await r.json();
 
-      if (json.name) res.send(`✅ Connected to Facebook Page: ${json.name}`);
-      else res.send(`⚠️ Facebook Response: ${JSON.stringify(json)}`);
+      if (json.name) {
+        res.send(`✅ Connected to Facebook Page: ${json.name}`);
+      } else {
+        res.send(`⚠️ Facebook Response: ${JSON.stringify(json)}`);
+      }
     } catch (err) {
       res.status(500).send(`❌ Facebook Test Failed: ${err.message}`);
     }
   });
 
-  // ===============================================
-  // 🧩 TEST ALL — Combined Service Test
-  // ===============================================
+  // Combined “test all” route
   app.get("/test-all", async (req, res) => {
-    let logs = [];
+    const logs = [];
     const now = new Date();
     const phTime = now.toLocaleString("en-PH", { timeZone: "Asia/Manila" });
+    logs.push("🚀 Starting Full Bot Diagnostic");
+    logs.push(`🕒 PH Local Time: ${phTime}`);
+    logs.push("----------------------------------------");
 
-    logs.push("🚀 Starting Full Bot Diagnostic...");
-    logs.push(`🕒 Local Time (PH): ${phTime}`);
-    logs.push("=====================================");
+    let status = { gemini: false, sheets: false, facebook: false };
 
-    // --- Gemini ---
+    // Gemini
     try {
-      const gemini = await generateContentFn("Connection test from AutoPostBot");
-      logs.push("✅ Gemini Working: " + gemini.slice(0, 120) + "...");
+      const out = await generateContentFn("Connection test from AutoPostBot");
+      status.gemini = true;
+      logs.push("✅ Gemini Working: " + out.slice(0, 100) + "...");
     } catch (err) {
-      logs.push("⚠️ Gemini Error: " + (err.response?.data?.error?.message || err.message || err));
+      const msg = err.response?.data?.error?.message || err.message;
+      logs.push("⚠️ Gemini Error: " + msg);
     }
 
-    // --- Google Sheets ---
+    // Sheets
     try {
       const clientEmail =
         process.env.GOOGLE_CLIENT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -105,30 +105,48 @@ export function registerTestRoutes(app, doc, serviceAccountAuth, generateContent
         credentials: { client_email: clientEmail, private_key: privateKey },
         scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
       });
-
       const sheets = google.sheets({ version: "v4", auth });
       const sheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
-      logs.push(`✅ Google Sheets Connected: ${sheet.data.properties.title}`);
+      status.sheets = true;
+      logs.push(`✅ Google Sheets: ${sheet.data.properties.title}`);
     } catch (err) {
       logs.push("⚠️ Sheets Error: " + (err.message || err));
     }
 
-    // --- Facebook ---
+    // Facebook
     try {
       const pageId = process.env.FB_PAGE_ID || process.env.PAGE_ID;
       const token = process.env.FB_PAGE_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
-
       const r = await fetch(`https://graph.facebook.com/${pageId}?access_token=${token}`);
       const json = await r.json();
-      if (json.name) logs.push(`✅ Facebook Connected: ${json.name}`);
-      else logs.push(`⚠️ Facebook Error: ${JSON.stringify(json)}`);
+      if (json.name) {
+        status.facebook = true;
+        logs.push(`✅ Facebook: ${json.name}`);
+      } else {
+        logs.push(`⚠️ Facebook Error: ${JSON.stringify(json)}`);
+      }
     } catch (err) {
       logs.push("⚠️ Facebook Error: " + (err.message || err));
     }
 
-    logs.push("=====================================");
-    logs.push("✅ Test Completed");
+    logs.push("----------------------------------------");
+    const allOk = status.gemini && status.sheets && status.facebook;
+    logs.push(allOk ? "✅ All Services OK" : "❌ Some services failed");
 
-    res.send(`<pre>${logs.join("\n")}</pre>`);
+    // Output type: JSON if requested, else human-readable
+    if (req.query.format === "json") {
+      res.json({
+        status: {
+          gemini: status.gemini ? "✅" : "❌",
+          sheets: status.sheets ? "✅" : "❌",
+          facebook: status.facebook ? "✅" : "❌",
+          overall: allOk ? "✅" : "❌",
+        },
+        timestamp: phTime,
+        environment: process.env.NODE_ENV || "development",
+      });
+    } else {
+      res.send(`<pre>${logs.join("\n")}</pre>`);
+    }
   });
 }
