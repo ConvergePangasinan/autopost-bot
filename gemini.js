@@ -1,6 +1,6 @@
 // ===============================================
 // 🤖 Gemini AI Service
-// Version: v3.3.6
+// Version: v3.3.7 (fixed endpoint)
 // ===============================================
 
 import axios from "axios";
@@ -15,15 +15,22 @@ export async function generateContent(prompt) {
 Include emojis and a short call to action.
 Example plan references: ${CONVERGE_PLANS.map(p => p.name).join(", ")}`;
 
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent`;
+
     const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+      `${url}?key=${apiKey}`,
       { contents: [{ parts: [{ text: fullPrompt }] }] },
-      { headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey } }
+      { headers: { "Content-Type": "application/json" } }
     );
 
-    return response.data?.candidates?.[0]?.content?.parts?.[0]?.text || prompt;
+    const text =
+      response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    if (!text) throw new Error("No response text from Gemini");
+
+    return text;
   } catch (err) {
-    console.error("❌ Gemini error:", err.message || err);
-    return prompt;
+    console.error("❌ Gemini error:", err.response?.data || err.message || err);
+    return `⚠️ Gemini Error: ${err.message || "Unknown"}`;
   }
 }
