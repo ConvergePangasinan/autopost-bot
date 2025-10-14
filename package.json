@@ -1,29 +1,23 @@
 {
   "name": "converge-autopost-bot",
   "version": "3.2.4",
-  "description": "Automated Converge Facebook posting bot using Google Sheets and Gemini AI",
-  "main": "server.js",
+  "description": "🚀 Converge Autopost Bot - Gemini + Google Sheets + Facebook Auto Poster",
+  "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node src/server.js"
   },
   "dependencies": {
-    "@google-cloud/local-auth": "^2.1.0",
-    "googleapis": "^131.0.0",
-    "express": "^4.19.2",
-    "body-parser": "^1.20.2",
-    "axios": "^1.7.3",
-    "@google/generative-ai": "^0.19.0",
+    "axios": "^1.7.2",
+    "cron": "^3.1.7",
     "dotenv": "^16.4.5",
-    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "google-auth-library": "^9.2.0",
+    "googleapis": "^144.0.0",
+    "google-spreadsheet": "^4.1.2",
     "node-cron": "^3.0.3"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.0"
-  },
   "engines": {
-    "node": ">=18"
-  },
-  "license": "MIT"
+    "node": ">=18.x"
+  }
 }

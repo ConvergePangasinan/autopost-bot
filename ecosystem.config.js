@@ -1,21 +1,27 @@
 // ===============================================
-// 🚀 Converge Autopost Bot - Render Starter Config
+// ⚙️ Converge Autopost Bot - Ecosystem Config
 // Version: v3.2.4
-// ✅ No PM2 (uses Render's native process manager)
+// Clean version for Render (no PM2)
 // ===============================================
 
 export default {
   apps: [
     {
       name: "converge-autopost-server",
-      script: "server.js",
-      // ✅ use native Node
-      interpreter: "node",
-      // ✅ optional environment
+      script: "src/server.js",
+      exec_mode: "fork", // keep as fork mode for local testing
       env: {
         NODE_ENV: "production",
-        PORT: 3000,
-      },
+        PORT: 3000
+      }
     },
-  ],
+    {
+      name: "test-all",
+      script: "src/testAll.js",
+      exec_mode: "fork",
+      env: {
+        NODE_ENV: "production"
+      }
+    }
+  ]
 };
