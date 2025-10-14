@@ -1,30 +1,32 @@
 // ===============================================
-// 📄 Google Sheet Connection (v3.4.0)
-// Handles authentication and connection for Sheets
+// 📄 Google Sheets Connection
+// Version: v3.4.1
 // ===============================================
-
+import dotenv from "dotenv";
+import { JWT } from "google-auth-library";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 
-// ===============================================
-// 🔐 Connect to Google Sheet
-// ===============================================
+dotenv.config();
+
 export async function connectToSheet() {
   try {
-    // Load credentials from environment
-    if (!process.env.GOOGLE_CREDENTIALS) {
-      throw new Error("Missing GOOGLE_CREDENTIALS in environment variables");
-    }
+    if (!process.env.GOOGLE_CREDENTIALS)
+      throw new Error("Missing GOOGLE_CREDENTIALS in environment");
 
     const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-    const doc = new GoogleSpreadsheet(process.env.SHEET_ID);
 
-    await doc.useServiceAccountAuth(creds);
+    const serviceAccountAuth = new JWT({
+      email: creds.client_email,
+      key: creds.private_key,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+
+    const doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAccountAuth);
     await doc.loadInfo();
-
-    console.log(`✅ Connected to Google Sheet: ${doc.title}`);
+    console.log("✅ Connected to Google Sheet:", doc.title);
     return doc;
   } catch (err) {
-    console.error("❌ Failed to connect to Google Sheet:", err.message);
-    process.exit(1);
+    console.error("❌ Google Sheets connection error:", err.message);
+    throw err;
   }
 }

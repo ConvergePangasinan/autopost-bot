@@ -1,68 +1,64 @@
 // ===============================================
-// ⏰ Scheduler Module (v3.4.0)
-// Handles automatic Facebook posts at fixed times
+// ⏰ Scheduler (Posts 9AM, 12PM, 5PM, 9PM)
+// Version: v3.4.1
 // ===============================================
-
 import cron from "node-cron";
 import moment from "moment-timezone";
 import { autoPostToFacebook } from "./facebook.js";
 import { appendLog } from "./logs.js";
-import { connectToSheet } from "./googleSheet.js";
 
-// ===============================================
-// 🕓 Scheduled Post Times (Manila Time)
-// ===============================================
-// 9AM, 12PM, 5PM, 9PM — every day
-const scheduleTimes = [
-  { time: "0 9 * * *", label: "9AM" },
-  { time: "0 12 * * *", label: "12PM" },
-  { time: "0 17 * * *", label: "5PM" },
-  { time: "0 21 * * *", label: "9PM" },
-];
-
-// ===============================================
-// 🚀 Main Scheduler Function
-// ===============================================
 export async function schedulePosts(doc) {
-  console.log("🕓 Scheduler initialized (9AM, 12PM, 5PM, 9PM)");
+  const times = ["09:00", "12:00", "17:00", "21:00"];
 
-  for (const { time, label } of scheduleTimes) {
-    cron.schedule(
-      time,
-      async () => {
-        const now = moment().tz("Asia/Manila").format("YYYY-MM-DD hh:mm A");
-        console.log(`⏰ Running scheduled post (${label}) at ${now}`);
+  times.forEach((time) => {
+    const [hour, minute] = time.split(":");
+    const cronExp = `${minute} ${hour} * * *`;
 
-        try {
-          const sheet = doc.sheetsByTitle["Posts"];
-          const rows = await sheet.getRows();
-          if (!rows.length) {
-            console.log("⚠️ No posts found in sheet.");
-            return;
-          }
+    cron.schedule(cronExp, async () => {
+      try {
+        const now = moment().tz("Asia/Manila").format("YYYY-MM-DD HH:mm:ss");
+        console.log(`🕒 Running scheduled post at ${now} (${time})`);
 
-          const row = rows.shift(); // take first row
-          const message = row.Message || row.Content;
+        const sheet = doc.sheetsByTitle["Posts"];
+        const rows = await sheet.getRows();
 
-          if (message) {
-            const fbResult = await autoPostToFacebook(message);
-
-            await appendLog(doc, {
-              timestamp: now,
-              message,
-              status: fbResult.success ? "✅ Posted" : "❌ Failed",
-              error: fbResult.error || "",
-            });
-
-            // Remove the posted row to avoid duplicate posting
-            await row.delete();
-            console.log(`✅ Posted and removed "${message}" from queue.`);
-          }
-        } catch (err) {
-          console.error(`❌ Scheduler (${label}) error:`, err.message);
+        if (!rows.length) {
+          console.log("⚠️ No posts found in sheet.");
+          return;
         }
-      },
-      { timezone: "Asia/Manila" }
-    );
-  }
+
+        // ✅ Pick next unpublished post
+        const nextPost = rows.find((r) => !r.Posted || r.Posted === "");
+        if (!nextPost) {
+          console.log("✅ All posts have been published.");
+          return;
+        }
+
+        const message = nextPost.Message || nextPost.Content;
+        if (!message) {
+          console.log("⚠️ Skipped empty message row.");
+          return;
+        }
+
+        const fbResult = await autoPostToFacebook(message);
+
+        await appendLog(doc, {
+          timestamp: now,
+          message,
+          status: fbResult.success ? "✅ Posted" : "❌ Failed",
+          error: fbResult.error || "",
+        });
+
+        if (fbResult.success) {
+          nextPost.Posted = "✅";
+          await nextPost.save();
+          console.log("📤 Posted successfully:", message);
+        } else {
+          console.log("❌ Post failed:", fbResult.error);
+        }
+      } catch (err) {
+        console.error("❌ Scheduler error:", err.message);
+      }
+    });
+  });
 }

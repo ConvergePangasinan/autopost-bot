@@ -1,27 +1,42 @@
 // ===============================================
-// 📱 Facebook Auto Poster
+// 📘 Facebook AutoPost Utility
+// Version: v3.4.1
 // ===============================================
-
 import axios from "axios";
+import dotenv from "dotenv";
 
+dotenv.config();
+
+/**
+ * Auto-posts a message to Facebook using Graph API
+ * @param {string} message - The post text
+ * @returns {Object} { success: boolean, error?: string }
+ */
 export async function autoPostToFacebook(message) {
   try {
-    const pageId = process.env.FB_PAGE_ID;
-    const token = process.env.FB_PAGE_ACCESS_TOKEN;
+    if (!process.env.FB_PAGE_ID || !process.env.FB_ACCESS_TOKEN) {
+      throw new Error("Missing Facebook credentials in environment (.env)");
+    }
 
-    if (!pageId || !token) throw new Error("Missing Facebook credentials");
+    const url = `https://graph.facebook.com/${process.env.FB_PAGE_ID}/feed`;
+    const params = {
+      message,
+      access_token: process.env.FB_ACCESS_TOKEN,
+    };
 
-    const url = `https://graph.facebook.com/${pageId}/feed`;
-    const response = await axios.post(url, { message, access_token: token });
+    const response = await axios.post(url, null, { params });
 
-    if (response.data?.id) {
-      console.log("✅ Posted to Facebook:", response.data.id);
-      return { success: true, postId: response.data.id };
+    if (response.data.id) {
+      console.log(`✅ Posted to Facebook successfully: ${response.data.id}`);
+      return { success: true };
     } else {
-      throw new Error(response.data?.error?.message || "Unknown FB error");
+      throw new Error("Facebook API did not return a post ID.");
     }
   } catch (err) {
-    console.error("❌ Facebook error:", err.message);
-    return { success: false, error: err.message };
+    console.error("❌ Facebook posting error:", err.response?.data || err.message);
+    return {
+      success: false,
+      error: err.response?.data?.error?.message || err.message,
+    };
   }
 }
