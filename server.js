@@ -1,6 +1,6 @@
 // ===============================================
 // 🚀 Converge Autopost Bot - Main Server
-// Version: v3.2.5
+// Version: v3.2.6
 // ===============================================
 
 import express from "express";
@@ -8,7 +8,7 @@ import dotenv from "dotenv";
 import cron from "node-cron";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
-import { registerTestRoutes } from "./routes/testAll.js";  // ✅ test routes
+import testBotRouter from "./testAll.js"; // ✅ imported directly (same folder)
 import { generateContent } from "./services/gemini.js";     // ✅ gemini service
 import { autoPostToFacebook } from "./services/facebook.js"; // ✅ facebook service
 
@@ -66,9 +66,9 @@ cron.schedule("*/30 * * * *", () => {
 });
 
 // ===============================================
-// 🧪 Register Test Routes (Gemini, Sheets, FB)
+// 🧪 Register Test Routes (Sheets + Server)
 // ===============================================
-registerTestRoutes(app, doc, serviceAccountAuth, generateContent);
+app.use("/", testBotRouter); // ✅ mount your /test-bot route
 
 // ===============================================
 // 🚀 Start Server
