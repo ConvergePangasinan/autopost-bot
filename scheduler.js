@@ -1,68 +1,54 @@
-// ===============================================
-// ⏰ Scheduler (4x Daily Autopost)
-// ===============================================
 import cron from "node-cron";
-import { autoPostToFacebook } from "./facebook.js";
+import axios from "axios";
+import { logActivity } from "./logs.js";
 
-export function initScheduler(doc) {
-  console.log("🕒 Scheduler initialized — 9AM, 12PM, 5PM, 9PM (Asia/Manila)");
+export function setupScheduler(sheet, logSheet) {
+  console.log("📅 Scheduler active: 9AM, 12PM, 5PM, 9PM");
 
-  async function runAutoPost() {
-    try {
-      console.log("🚀 Running scheduled autopost...");
-      await doc.loadInfo();
+  // 4 posts a day
+  const schedules = ["0 9 * * *", "0 12 * * *", "0 17 * * *", "0 21 * * *"];
 
-      const pendingSheet = doc.sheetsByTitle["Pending"] || doc.sheetsByIndex[0];
-      const logSheet = doc.sheetsByTitle["Logs"];
-      const rows = await pendingSheet.getRows();
-
-      for (const row of rows) {
-        if (row.Status === "Pending" || row.Status === "pending") {
-          const caption = row.Caption || "Converge Internet Update";
-          const fbResponse = await autoPostToFacebook(caption);
-
-          const timestamp = new Date().toLocaleString("en-PH", {
-            timeZone: "Asia/Manila",
-          });
-
-          if (fbResponse.success) {
-            row.Status = "✅ Posted";
-            row.PostID = fbResponse.postId;
-            row.Timestamp = timestamp;
-            await row.save();
-
-            if (logSheet) {
-              await logSheet.addRow({
-                Timestamp: timestamp,
-                Caption: caption,
-                Status: "✅ Posted",
-                Source: "Scheduled",
-                Error: "",
-              });
-            }
-
-            console.log(`✅ Posted: ${caption}`);
-          } else {
-            if (logSheet) {
-              await logSheet.addRow({
-                Timestamp: timestamp,
-                Caption: caption,
-                Status: "❌ Failed",
-                Source: "Scheduled",
-                Error: fbResponse.error,
-              });
-            }
-            console.error(`❌ Failed to post: ${fbResponse.error}`);
-          }
-        }
-      }
-    } catch (err) {
-      console.error("❌ Error in autopost:", err.message);
-    }
+  for (const time of schedules) {
+    cron.schedule(time, async () => {
+      console.log(`🕘 Running scheduled post at ${time}`);
+      await handleAutoPost(sheet, logSheet);
+    });
   }
+}
 
-  // Schedule 4x daily: 9AM, 12PM, 5PM, 9PM
-  cron.schedule("0 9,12,17,21 * * *", runAutoPost, {
-    timezone: "Asia/Manila",
-  });
+async function handleAutoPost(sheet, logSheet) {
+  try {
+    const rows = await sheet.getRows();
+    const pending = rows.find(r => r.Status !== "Posted" && r.Content);
+
+    if (!pending) {
+      console.log("ℹ️ No pending post found.");
+      return;
+    }
+
+    const message = pending.Content;
+    const imageUrl = pending.Image || "";
+    const token = process.env.PAGE_ACCESS_TOKEN;
+    const pageId = process.env.PAGE_ID;
+
+    const endpoint = imageUrl
+      ? `https://graph.facebook.com/${pageId}/photos`
+      : `https://graph.facebook.com/${pageId}/feed`;
+
+    const params = imageUrl
+      ? { access_token: token, message, url: imageUrl }
+      : { access_token: token, message };
+
+    const res = await axios.post(endpoint, params);
+    console.log("✅ Posted:", res.data);
+
+    pending.Status = "Posted";
+    pending.DatePosted = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
+    await pending.save();
+
+    await logActivity(logSheet, `✅ Posted: ${message.slice(0, 40)}...`);
+  } catch (err) {
+    console.error("❌ Scheduler error:", err.message);
+    await logActivity(logSheet, `❌ Error: ${err.message}`);
+  }
 }

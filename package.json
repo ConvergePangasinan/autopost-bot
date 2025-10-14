@@ -1,28 +1,17 @@
 {
-  "name": "autopost-bot",
-  "version": "3.4.0",
-  "description": "🚀 Converge AutoPost Bot - Google Sheet + Facebook Auto Poster",
-  "main": "server.js",
+  "name": "converge-autopost-bot",
+  "version": "2.0.0",
+  "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "ping": "node ping.js"
+    "start": "node src/server.js",
+    "testall": "node src/version.js"
   },
   "dependencies": {
-    "axios": "^1.7.1",
-    "body-parser": "^1.20.3",
-    "cors": "^2.8.5",
+    "axios": "^1.7.4",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "googleapis": "^144.0.0",
-    "moment-timezone": "^0.5.45",
-    "morgan": "^1.10.0",
-    "node-cron": "^3.0.3",
-    "node-fetch": "^3.3.2"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "author": "Edward John Paulo",
-  "license": "MIT"
+    "google-spreadsheet": "^4.1.1",
+    "node-cron": "^3.0.3"
+  }
 }

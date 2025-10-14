@@ -1,11 +1,5 @@
-// ===============================================
-// 📦 Converge Autopost Bot - Version Info
-// ===============================================
+import fs from "fs";
 
-export const VERSION = {
-  app: "Converge Autopost Bot",
-  author: "Edward John Paulo",
-  build: "v3.4.1 Modular",
-  description: "Facebook AutoPoster with Scheduler & Logs Dashboard",
-  updated: "October 2025",
-};
+console.log("🔍 Checking version...");
+const pkg = JSON.parse(fs.readFileSync("./package.json", "utf8"));
+console.log(`🚀 Converge Autopost Bot v${pkg.version}`);
