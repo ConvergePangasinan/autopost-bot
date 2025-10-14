@@ -1,11 +1,12 @@
 // ===============================================
 // 🚀 Converge AutoPost Bot - Server (Root Version)
-// Version: v3.4.0
+// Version: v3.4.1 (Fixed Google Sheets Auth)
 // ===============================================
 
 import express from "express";
 import dotenv from "dotenv";
 import { GoogleSpreadsheet } from "google-spreadsheet";
+import { JWT } from "google-auth-library";
 import { autoPostToFacebook } from "./facebook.js";
 import { schedulePosts } from "./scheduler.js";
 import { appendLog } from "./logs.js";
@@ -32,12 +33,20 @@ try {
 }
 
 // ===============================================
-// 📄 Connect to Google Sheet
+// 📄 Connect to Google Sheet (Updated Auth Method)
 // ===============================================
 async function connectToSheet() {
   try {
     const doc = new GoogleSpreadsheet(process.env.SHEET_ID);
-    await doc.useServiceAccountAuth(creds);
+
+    // ✅ New Authentication (google-auth-library)
+    const auth = new JWT({
+      email: creds.client_email,
+      key: creds.private_key.replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+
+    await doc.useServiceAccountAuth(auth);
     await doc.loadInfo();
     console.log("✅ Connected to Google Sheet:", doc.title);
     return doc;
