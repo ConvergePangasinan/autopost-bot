@@ -1,6 +1,6 @@
 // ===============================================
 // 🤖 Gemini AI Service
-// Version: v3.3.7 (fixed endpoint)
+// Version: v3.3.8 (fixed model endpoint for Flash)
 // ===============================================
 
 import axios from "axios";
@@ -15,7 +15,7 @@ export async function generateContent(prompt) {
 Include emojis and a short call to action.
 Example plan references: ${CONVERGE_PLANS.map(p => p.name).join(", ")}`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent`;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
 
     const response = await axios.post(
       `${url}?key=${apiKey}`,
@@ -23,9 +23,7 @@ Example plan references: ${CONVERGE_PLANS.map(p => p.name).join(", ")}`;
       { headers: { "Content-Type": "application/json" } }
     );
 
-    const text =
-      response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
+    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (!text) throw new Error("No response text from Gemini");
 
     return text;
