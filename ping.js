@@ -1,20 +1,18 @@
 // ===============================================
-// ping.js - simple keepalive ping script
-// Version: v3.2.0
+// 🔁 Keep-Alive Ping Script for Render
+// Version: v3.3.1
 // ===============================================
+
 import fetch from "node-fetch";
-import dotenv from "dotenv";
-dotenv.config();
 
-const PING_URL = process.env.KEEPALIVE_URL || `https://${process.env.RENDER_SERVICE_DOMAIN || "autopost-bot-m222.onrender.com"}/ping`;
+const url = process.env.PING_URL || "https://your-render-app.onrender.com";
+console.log(`🔁 Starting keep-alive ping to ${url}`);
 
-async function ping() {
+setInterval(async () => {
   try {
-    const res = await fetch(PING_URL);
-    console.log(`${new Date().toISOString()} - Pinged ${PING_URL} - status ${res.status}`);
+    const res = await fetch(url + "/test-all");
+    console.log("✅ Keep-alive ping successful:", await res.text());
   } catch (err) {
-    console.error("Ping failed:", err?.message || err);
+    console.error("⚠️ Ping failed:", err.message);
   }
-}
-
-ping();
+}, 14 * 60 * 1000); // every 14 minutes

@@ -1,32 +1,45 @@
 // ===============================================
-// 🧪 Test All - Google Sheets & Server Check
+// 🧪 Test Routes for Gemini, Sheets, Facebook
+// Version: v3.3.3 (auto-synced)
 // ===============================================
 
-import express from "express";
-import { google } from "googleapis";
+import { VERSION } from "./version.js";
+import { autoPostToFacebook } from "./facebook.js";
+import { generateContent } from "./gemini.js";
 
-const router = express.Router();
-
-router.get("/test-bot", async (req, res) => {
-  try {
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_CLIENT_EMAIL,
-        private_key: (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
-      },
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+export function registerTestRoutes(app, doc, auth) {
+  // Health check
+  app.get("/test-all", (req, res) => {
+    res.json({
+      message: "✅ All test routes operational",
+      version: VERSION.scripts.testAll,
+      timestamp: new Date().toLocaleString("en-PH"),
     });
+  });
 
-    const sheets = google.sheets({ version: "v4", auth });
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  // Gemini test
+  app.get("/test-gemini", async (req, res) => {
+    const text = await generateContent("fast fiber internet");
+    res.json({ result: text, version: VERSION.scripts.gemini });
+  });
 
-    const sheet = await sheets.spreadsheets.get({ spreadsheetId });
-    console.log(`✅ Connected to Google Sheets: ${sheet.data.properties.title}`);
-    res.send(`✅ BOT TEST PASSED — Connected to ${sheet.data.properties.title}`);
-  } catch (err) {
-    console.error("❌ BOT TEST FAILED:", err);
-    res.status(500).send(`❌ BOT TEST FAILED: ${err.message}`);
-  }
-});
+  // Facebook test
+  app.get("/test-fb", async (req, res) => {
+    const response = await autoPostToFacebook("🧪 Test post from Converge Bot");
+    res.json({ result: response, version: VERSION.scripts.facebook });
+  });
 
-export default router;
+  // Google Sheet test
+  app.get("/test-sheet", async (req, res) => {
+    try {
+      await doc.loadInfo();
+      res.json({
+        title: doc.title,
+        sheetCount: doc.sheetCount,
+        version: VERSION.scripts.testAll,
+      });
+    } catch (err) {
+      res.json({ error: err.message });
+    }
+  });
+}
