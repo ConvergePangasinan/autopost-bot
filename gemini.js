@@ -1,6 +1,5 @@
 // ===============================================
-// 🤖 Gemini AI Service (Fixed for 404 error)
-// Version: v3.3.7
+// 🤖 Gemini AI Service (Final Fixed Version)
 // ===============================================
 
 import axios from "axios";
@@ -15,9 +14,9 @@ export async function generateContent(prompt) {
 Include emojis and a short call to action.
 Example plan references: ${CONVERGE_PLANS.map(p => p.name).join(", ")}`;
 
-    // ✅ Correct endpoint and model
+    // ✅ Use v1 and correct model name
     const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
       {
         contents: [
           {
@@ -36,10 +35,10 @@ Example plan references: ${CONVERGE_PLANS.map(p => p.name).join(", ")}`;
     const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (text) {
-      console.log("✅ Gemini Working:", text.slice(0, 80) + "...");
+      console.log("✅ Gemini Working:", text.slice(0, 100) + "...");
       return text;
     } else {
-      console.log("⚠️ Gemini returned no text.");
+      console.warn("⚠️ Gemini returned empty response");
       return prompt;
     }
   } catch (err) {
