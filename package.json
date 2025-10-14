@@ -1,12 +1,11 @@
 {
   "name": "autopost-bot",
-  "version": "3.3.8",
-  "description": "🚀 Converge AutoPost Bot Server with Gemini 2.5 Integration",
+  "version": "3.3.9",
+  "description": "🚀 Converge AutoPost Bot Server (Gemini 2.5 + Keep-Alive + Render Optimized)",
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "ping": "node ping.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.16.0",
@@ -16,7 +15,10 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "googleapis": "^144.0.0",
+    "google-auth-library": "^9.14.2",
+    "google-spreadsheet": "^4.1.1",
     "moment-timezone": "^0.5.45",
+    "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2"
   },
   "engines": {
@@ -28,7 +30,8 @@
     "gemini",
     "facebook",
     "google-sheets",
-    "automation"
+    "automation",
+    "render"
   ],
   "author": "Edward John Paulo",
   "license": "MIT"
