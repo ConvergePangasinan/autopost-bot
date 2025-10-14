@@ -1,19 +1,21 @@
 // ===============================================
-// ⚙️ PM2 Ecosystem Config (Render Compatible)
-// Version: v3.3.3 (auto-synced)
+// 🌐 PM2 / Render Ecosystem Configuration
 // ===============================================
-
 export default {
   apps: [
     {
-      name: "converge-autopost-bot",
-      script: "./server.js",
-      instances: 1,
-      autorestart: true,
+      name: "converge-autopost-server",
+      script: "server.js",
       watch: false,
       env: {
         NODE_ENV: "production",
-      },
+        PORT: 3000
+      }
     },
-  ],
+    {
+      name: "converge-autopost-tester",
+      script: "testAll.js",
+      watch: false
+    }
+  ]
 };
