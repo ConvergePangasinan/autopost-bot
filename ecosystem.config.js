@@ -8,7 +8,7 @@ export default {
   apps: [
     {
       name: "converge-autopost-server",
-      script: "src/server.js",
+      script: "server.js",
       exec_mode: "fork", // keep as fork mode for local testing
       env: {
         NODE_ENV: "production",
