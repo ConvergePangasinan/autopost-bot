@@ -1,18 +1,34 @@
 // ===============================================
 // 🔁 Keep-Alive Ping Script for Render
-// Version: v3.3.1
+// Version: v3.3.8 (Stable)
 // ===============================================
 
 import fetch from "node-fetch";
 
-const url = process.env.PING_URL || "https://your-render-app.onrender.com";
+// 🌍 Use your Render app public URL (auto from env or fallback)
+const url = process.env.PING_URL || "https://autopost-bot-m222.onrender.com";
+
 console.log(`🔁 Starting keep-alive ping to ${url}`);
 
-setInterval(async () => {
+// 🕒 Ping every 14 minutes (Render free tier sleeps after 15)
+const PING_INTERVAL = 14 * 60 * 1000;
+
+async function pingServer() {
+  const timestamp = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
+
   try {
-    const res = await fetch(url + "/test-all");
-    console.log("✅ Keep-alive ping successful:", await res.text());
+    const res = await fetch(`${url}/health`);
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`✅ [${timestamp}] Ping successful — Status: ${data.status}, Env: ${data.environment}`);
+    } else {
+      console.warn(`⚠️ [${timestamp}] Ping returned HTTP ${res.status}`);
+    }
   } catch (err) {
-    console.error("⚠️ Ping failed:", err.message);
+    console.error(`❌ [${timestamp}] Ping failed: ${err.message}`);
   }
-}, 14 * 60 * 1000); // every 14 minutes
+}
+
+// 🔄 Start ping loop
+pingServer(); // immediate first ping
+setInterval(pingServer, PING_INTERVAL);

@@ -1,6 +1,6 @@
 // ===============================================
 // 🚀 Converge Autopost Bot - Main Server
-// Version: v3.4.0
+// Version: v3.3.8 (Gemini 2.5 + Keep-Alive Integrated)
 // ===============================================
 
 import express from "express";
@@ -10,25 +10,28 @@ import fetch from "node-fetch";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { registerTestRoutes } from "./testAll.js";
-import { generateContent, geminiHealthCheck } from "./gemini.js";
+import { generateContent } from "./gemini.js";
 import { autoPostToFacebook } from "./facebook.js";
 import { VERSION } from "./version.js";
 
 dotenv.config();
 const app = express();
 
-// Google Sheets auth
+// ===============================================
+// 🔑 Google Sheets Auth
+// ===============================================
 const serviceAccountAuth = new JWT({
   email: process.env.GOOGLE_CLIENT_EMAIL,
   key: (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
+
 const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
 
-// Version / status route
+// ===============================================
+// 🧾 Version Route
+// ===============================================
 app.get("/version", (req, res) => {
-  const now = new Date();
-  const phTime = now.toLocaleString("en-PH", { timeZone: "Asia/Manila" });
   res.json({
     app: VERSION.app,
     author: VERSION.author,
@@ -36,81 +39,86 @@ app.get("/version", (req, res) => {
     scripts: VERSION.scripts,
     updated: VERSION.updated,
     environment: process.env.NODE_ENV || "development",
-    timestamp: phTime,
+    timestamp: new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
   });
 });
 
-// Core auto-post function
+// ===============================================
+// 🧠 Core AutoPost Function
+// ===============================================
 async function runAutoPost() {
   try {
     console.log("🕒 Running scheduled autopost...");
-
     await doc.loadInfo();
-    const sheet = doc.sheetsByTitle?.["Pending"] || doc.sheetsByIndex[0];
+
+    const sheet =
+      doc.sheetsByTitle && doc.sheetsByTitle["Pending"]
+        ? doc.sheetsByTitle["Pending"]
+        : doc.sheetsByIndex[0];
+
     const rows = await sheet.getRows();
 
     for (const row of rows) {
       if (row.Status === "Pending" || row.Status === "pending") {
         const caption =
-          row.Caption ||
-          (await generateContent(row.Description || "Converge Internet"));
+          row.Caption || (await generateContent(row.Description || "Converge Internet"));
         const fbResponse = await autoPostToFacebook(caption);
 
         if (fbResponse.success) {
           row.Status = "✅ Posted";
           row.PostID = fbResponse.postId;
-          row.Timestamp = new Date().toLocaleString("en-PH", {
-            timeZone: "Asia/Manila",
-          });
+          row.Timestamp = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
           await row.save();
           console.log(`✅ Posted: ${caption}`);
         } else {
-          console.error("❌ Post failed:", fbResponse.error);
+          console.error(`❌ Failed to post: ${fbResponse.error}`);
         }
       }
     }
   } catch (err) {
-    console.error("❌ runAutoPost error:", err.message);
+    console.error("❌ Error in autopost:", err);
   }
 }
 
-// Schedule auto-post
+// ===============================================
+// ⏰ Schedule AutoPost
+// ===============================================
 const intervalHours = Number(process.env.POST_INTERVAL_HOURS || 0);
 if (intervalHours > 0) {
   cron.schedule(`0 */${intervalHours} * * *`, runAutoPost);
 } else {
-  cron.schedule("*/30 * * * *", runAutoPost);
+  cron.schedule("*/30 * * * *", runAutoPost); // every 30 minutes default
 }
 
-// Draft job every 5 minutes
+// ===============================================
+// 🧾 Draft Job (every 5 minutes)
+// ===============================================
 cron.schedule("*/5 * * * *", async () => {
   try {
     const content = await generateContent("Draft update");
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     await sheet.addRow({
-      Timestamp: new Date().toLocaleString("en-PH", {
-        timeZone: "Asia/Manila",
-      }),
+      Timestamp: new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
       Source: "AutoDraft",
       Content: content,
     });
-  } catch (err) {
-    console.error("Draft error:", err.message);
+  } catch (e) {
+    console.error("Draft job error:", e.message);
   }
 });
 
-// Weekly logs cleanup
+// ===============================================
+// 🧹 Cleanup Logs Weekly
+// ===============================================
 cron.schedule("0 0 * * 0", async () => {
   try {
     const fs = await import("fs/promises");
     const path = await import("path");
     const LOGS_DIR = path.join(process.cwd(), "logs");
-    await fs.mkdir(LOGS_DIR, { recursive: true });
-    const files = await fs.readdir(LOGS_DIR);
-    for (const f of files) {
-      await fs.rm(path.join(LOGS_DIR, f), { force: true });
-    }
+    await fs.mkdir(LOGS_DIR, { recursive: true }).catch(() => {});
+    const files = await fs.readdir(LOGS_DIR).catch(() => []);
+    for (const f of files) await fs.rm(path.join(LOGS_DIR, f), { force: true });
     await fs.writeFile(path.join(LOGS_DIR, "out.log"), `Cleaned: ${new Date().toISOString()}\n`);
     console.log("🧹 Logs cleaned.");
   } catch (err) {
@@ -118,10 +126,14 @@ cron.schedule("0 0 * * 0", async () => {
   }
 });
 
-// Register test routes
+// ===============================================
+// 🧪 Register Test Routes (Gemini, Sheets, FB)
+// ===============================================
 registerTestRoutes(app, doc, serviceAccountAuth, generateContent);
 
-// Manual post route
+// ===============================================
+// ⚙️ Manual Post Route
+// ===============================================
 app.get("/manual-post", async (req, res) => {
   try {
     const content = await generateContent("Manual post trigger");
@@ -130,9 +142,7 @@ app.get("/manual-post", async (req, res) => {
       await doc.loadInfo();
       const sheet = doc.sheetsByIndex[0];
       await sheet.addRow({
-        Timestamp: new Date().toLocaleString("en-PH", {
-          timeZone: "Asia/Manila",
-        }),
+        Timestamp: new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
         Source: "Manual",
         Content: content,
       });
@@ -145,31 +155,30 @@ app.get("/manual-post", async (req, res) => {
   }
 });
 
-// Root route: status dashboard
+// ===============================================
+// 🧩 Root Route — Live Status Dashboard
+// ===============================================
 app.get("/", async (req, res) => {
-  const now = new Date();
-  const phTime = now.toLocaleString("en-PH", { timeZone: "Asia/Manila" });
   const logs = [];
-  logs.push(`🚀 System Status @ ${phTime}`);
-  logs.push("----------------------------------------");
+  logs.push("🚀 Full System Status Check");
 
-  // Gemini
+  // --- Gemini ---
   try {
     await generateContent("Connection test");
     logs.push("✅ Gemini: OK");
-  } catch (err) {
-    logs.push("⚠️ Gemini Error: " + (err.message || err));
+  } catch (e) {
+    logs.push("⚠️ Gemini Error: " + (e.message || e));
   }
 
-  // Sheets
+  // --- Google Sheets ---
   try {
     await doc.loadInfo();
     logs.push(`✅ Google Sheets: ${doc.title}`);
-  } catch (err) {
-    logs.push("⚠️ Sheets Error: " + (err.message || err));
+  } catch (e) {
+    logs.push("⚠️ Sheets Error: " + (e.message || e));
   }
 
-  // Facebook
+  // --- Facebook ---
   try {
     const pageId = process.env.FB_PAGE_ID || process.env.PAGE_ID;
     const token = process.env.FB_PAGE_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
@@ -177,20 +186,44 @@ app.get("/", async (req, res) => {
     const json = await r.json();
     if (json.name) logs.push(`✅ Facebook: ${json.name}`);
     else logs.push(`⚠️ Facebook Error: ${JSON.stringify(json)}`);
-  } catch (err) {
-    logs.push("⚠️ Facebook Error: " + (err.message || err));
+  } catch (e) {
+    logs.push("⚠️ Facebook Error: " + (e.message || e));
   }
 
   res.send(`
-    <h2>✅ Converge AutoPost Bot v3.4.0</h2>
-    <p>Status Dashboard (PH): ${phTime}</p>
+    <h2>✅ Converge AutoPost Bot v3.3.8</h2>
+    <p>Status Dashboard (${new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" })})</p>
     <pre>${logs.join("\n")}</pre>
   `);
 });
 
-// Start server
+// ===============================================
+// 🚀 Start Server
+// ===============================================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`🚀 Converge Autopost Bot v3.4.0 running on port ${PORT}`);
-  geminiHealthCheck(); // run Gemini health check at startup
+  console.log(`🚀 Converge Autopost Bot v3.3.8 running on port ${PORT}`);
 });
+
+// ===============================================
+// 🔁 Keep-Alive Ping (Render Free Tier Protection)
+// ===============================================
+const SELF_URL = process.env.PING_URL || "https://autopost-bot-m222.onrender.com";
+const PING_INTERVAL = 14 * 60 * 1000; // every 14 minutes
+
+async function keepAlivePing() {
+  const timestamp = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
+  try {
+    const res = await fetch(`${SELF_URL}/health`);
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`✅ [${timestamp}] Keep-alive OK — ${data.status} (${data.environment})`);
+    } else {
+      console.warn(`⚠️ [${timestamp}] Keep-alive HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.error(`❌ [${timestamp}] Keep-alive failed: ${err.message}`);
+  }
+}
+keepAlivePing();
+setInterval(keepAlivePing, PING_INTERVAL);

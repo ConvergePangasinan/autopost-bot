@@ -1,79 +1,79 @@
 // ===============================================
-// 🤖 Gemini API (2.5 models with fallback & health check)
+// 🤖 Gemini AI Service (Root Version)
+// File: gemini.js
+// Supports: gemini-2.5-flash (Free Tier) + Fallback
 // ===============================================
 
 import axios from "axios";
-import { CONVERGE_PLANS } from "./convergePlans.js";
 
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-pro"];
-
-/**
- * Try to generate content using one of the models (fallback if first fails).
- * Returns the generated text or throws an error.
- */
 export async function generateContent(prompt) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Missing GEMINI_API_KEY");
-  }
-
-  const fullPrompt = `Write an engaging Facebook caption for Converge ISP about: ${prompt}.
-Include emojis and a short call to action.
-Example plan references: ${CONVERGE_PLANS.map(p => p.name).join(", ")}`;
-
-  for (const model of MODELS) {
-    const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`;
-    console.log(`🌐 Trying Gemini model: ${model}`);
-
-    try {
-      const response = await axios.post(
-        url,
-        { contents: [{ parts: [{ text: fullPrompt }] }] },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-        }
-      );
-      const text =
-        response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-      if (text) {
-        console.log(`✅ Gemini Success [${model}]: ${text.substring(0, 80)}...`);
-        return text;
-      } else {
-        console.warn(`⚠️ ${model} returned no text.`);
-      }
-    } catch (err) {
-      const status = err.response?.status;
-      const msg = err.response?.data?.error?.message || err.message;
-      console.warn(`⚠️ ${model} failed [${status}]: ${msg}`);
-      // continue to next model
-    }
-  }
-
-  throw new Error("All Gemini 2.5 models failed.");
-}
-
-/**
- * Health check for Gemini; logs whether connection is successful.
- */
-export async function geminiHealthCheck() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn("⚠️ GEMINI_API_KEY not set — skipping Gemini health check.");
-    return;
-  }
-  console.log("🧠 Running Gemini health check...");
   try {
-    const test = await generateContent("Test connection from AutoPostBot");
-    if (test) {
-      console.log("✅ Gemini health check passed!");
-    } else {
-      console.warn("⚠️ Gemini health check returned empty output.");
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("❌ Missing GEMINI_API_KEY in .env");
+
+    // ✅ Use latest models first, fallback to legacy if needed
+    const models = [
+      "gemini-2.5-flash",     // Free tier main model
+      "gemini-1.5-flash-002"  // Legacy fallback (still working)
+    ];
+
+    // 🕒 PH timezone
+    const now = new Date();
+    const localTime = now.toLocaleString("en-PH", { timeZone: "Asia/Manila" });
+
+    const fullPrompt = `
+Write a creative Facebook caption for Converge ISP about: ${prompt}.
+Include emojis, a short call to action, and keep it engaging.
+`;
+
+    for (const model of models) {
+      try {
+        console.log(`🕒 [${localTime}] Trying Gemini model: ${model}`);
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+        const response = await axios.post(
+          url,
+          {
+            contents: [
+              {
+                parts: [{ text: fullPrompt }]
+              }
+            ]
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": apiKey
+            }
+          }
+        );
+
+        const text =
+          response.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+        if (text.trim()) {
+          console.log(`✅ Gemini response success (${model})`);
+          return text;
+        } else {
+          console.warn(`⚠️ ${model} returned empty response.`);
+        }
+      } catch (err) {
+        const code = err.response?.status || "UNKNOWN";
+        const msg = err.response?.data?.error?.message || err.message;
+        console.warn(`⚠️ ${model} failed [${code}]: ${msg}`);
+
+        // Handle rate-limit fallback
+        if (code === 429) {
+          console.log("🔄 Rate limit reached — switching model...");
+          continue;
+        }
+      }
     }
+
+    return "⚠️ Gemini temporarily unavailable. Please try again later.";
   } catch (err) {
-    console.error("❌ Gemini health check failed:", err.message);
+    console.error("❌ Critical Gemini error:", err.message);
+    return "⚠️ Gemini initialization failed.";
   }
 }
