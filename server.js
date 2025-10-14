@@ -1,3 +1,8 @@
+// ===============================================
+// 🚀 Converge AutoPost Bot Server
+// Version: v3.4.3 (Root + GOOGLE_CREDENTIALS)
+// ===============================================
+
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -18,10 +23,11 @@ app.use(bodyParser.json());
 // ✅ Load Google credentials from .env
 let serviceAccount;
 try {
-  serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_JSON);
-  logMessage("✅ Loaded Google credentials from .env");
+  if (!process.env.GOOGLE_CREDENTIALS) throw new Error("Missing GOOGLE_CREDENTIALS in .env");
+  serviceAccount = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+  logMessage("✅ Loaded GOOGLE_CREDENTIALS from .env");
 } catch (err) {
-  logMessage("❌ Failed to parse GOOGLE_SERVICE_JSON");
+  logMessage("❌ Failed to parse GOOGLE_CREDENTIALS");
   console.error(err);
   process.exit(1);
 }
@@ -33,7 +39,7 @@ const serviceAuth = new JWT({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// Example: Connect to Google Sheet
+// ✅ Example connection to Google Sheet
 async function connectSheet() {
   try {
     const doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAuth);
@@ -45,13 +51,16 @@ async function connectSheet() {
   }
 }
 
+// Initialize sheet and schedule tasks
 connectSheet();
 scheduleAllTasks();
 
+// ✅ Root endpoint
 app.get("/", (req, res) => {
-  res.send("🚀 Converge AutoPost Bot Server running...");
+  res.send("🚀 Converge AutoPost Bot Server running successfully...");
 });
 
+// ✅ Start server
 app.listen(PORT, () => {
   logMessage(`✅ Server running on port ${PORT}`);
 });

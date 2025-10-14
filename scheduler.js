@@ -1,6 +1,6 @@
 // ===============================================
 // 🕓 Scheduler - Converge AutoPost Bot
-// Version: v3.4.2 (no src folder)
+// Version: v3.4.3 (Root + GOOGLE_CREDENTIALS)
 // ===============================================
 
 import cron from "node-cron";
@@ -8,16 +8,16 @@ import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import { appendLog, logMessage } from "./logs.js";
 
-// Load environment variables
 const SHEET_ID = process.env.SHEET_ID;
 
 // ✅ Load Google credentials from .env
 let serviceAccount;
 try {
-  serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_JSON);
-  logMessage("✅ Scheduler loaded Google credentials successfully");
+  if (!process.env.GOOGLE_CREDENTIALS) throw new Error("Missing GOOGLE_CREDENTIALS in .env");
+  serviceAccount = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+  logMessage("✅ Scheduler loaded GOOGLE_CREDENTIALS successfully");
 } catch (err) {
-  logMessage("❌ Scheduler failed to parse GOOGLE_SERVICE_JSON");
+  logMessage("❌ Failed to parse GOOGLE_CREDENTIALS");
   console.error(err);
   process.exit(1);
 }
@@ -65,11 +65,11 @@ async function postScheduledTasks() {
   }
 }
 
-// ✅ Schedule all recurring tasks
+// ✅ Schedule recurring tasks
 export function scheduleAllTasks() {
   initSheet();
 
-  // Runs every 15 minutes (adjust as needed)
+  // Runs every 15 minutes (you can change this)
   cron.schedule("*/15 * * * *", async () => {
     logMessage("🕓 Running scheduled post task...");
     await postScheduledTasks();
