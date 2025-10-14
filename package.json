@@ -1,13 +1,12 @@
-0{
+{
   "name": "autopost-bot",
   "version": "3.4.0",
-  "description": "🚀 Converge AutoPost Bot Server (Manual Sheets Posting)",
+  "description": "🚀 Converge AutoPost Bot - Google Sheet + Facebook Auto Poster",
   "main": "server.js",
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "ping": "node ping.js",
-    "testAll": "node testAll.js"
+    "ping": "node ping.js"
   },
   "dependencies": {
     "axios": "^1.7.1",
@@ -17,9 +16,9 @@
     "express": "^4.19.2",
     "googleapis": "^144.0.0",
     "moment-timezone": "^0.5.45",
+    "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
-    "node-fetch": "^3.3.2",
-    "morgan": "^1.10.0"
+    "node-fetch": "^3.3.2"
   },
   "engines": {
     "node": ">=18"
