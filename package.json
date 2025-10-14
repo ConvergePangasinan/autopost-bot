@@ -1,7 +1,7 @@
 {
   "name": "converge-autopost-bot",
   "version": "3.3.6",
-  "description": "🚀 Converge Autopost Bot - Gemini + Google Sheets + Facebook Auto Poster",
+  "description": "Converge Autopost Bot - Gemini + Google Sheets + Facebook",
   "main": "server.js",
   "type": "module",
   "scripts": {

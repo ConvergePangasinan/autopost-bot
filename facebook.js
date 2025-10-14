@@ -1,34 +1,27 @@
 // ===============================================
-// 📱 Facebook AutoPost Service
-// Version: v3.3.3 (auto-synced)
+// 📱 Facebook Auto Poster
+// Version: v3.3.6
 // ===============================================
 
-import fetch from "node-fetch";
-import { VERSION } from "./version.js";
+import axios from "axios";
 
-export async function autoPostToFacebook(caption) {
-  console.log(`📡 [Facebook ${VERSION.scripts.facebook}] Posting...`);
-
+export async function autoPostToFacebook(message) {
   try {
-    const pageId = process.env.FB_PAGE_ID;
-    const token = process.env.FB_ACCESS_TOKEN;
+    const pageId = process.env.FB_PAGE_ID || process.env.PAGE_ID;
+    const token = process.env.FB_PAGE_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
 
-    if (!pageId || !token) throw new Error("Facebook credentials missing!");
+    if (!pageId || !token) throw new Error("Missing Facebook credentials");
 
-    const response = await fetch(`https://graph.facebook.com/${pageId}/feed`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: caption, access_token: token }),
-    });
+    const url = `https://graph.facebook.com/${pageId}/feed`;
+    const response = await axios.post(url, { message, access_token: token });
 
-    const data = await response.json();
-    if (data.id) {
-      return { success: true, postId: data.id };
+    if (response.data && response.data.id) {
+      return { success: true, postId: response.data.id };
     } else {
-      throw new Error(data.error?.message || "Unknown Facebook error");
+      return { success: false, error: response.data?.error?.message || "No post id returned" };
     }
   } catch (err) {
-    console.error("❌ Facebook error:", err.message);
-    return { success: false, error: err.message };
+    console.error("❌ Facebook error:", err.message || err);
+    return { success: false, error: err.message || String(err) };
   }
 }

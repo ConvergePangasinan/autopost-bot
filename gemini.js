@@ -1,35 +1,29 @@
 // ===============================================
-// 🤖 Gemini Content Generator
-// Version: v3.3.3 (auto-synced)
+// 🤖 Gemini AI Service
+// Version: v3.3.6
 // ===============================================
 
 import axios from "axios";
-import { VERSION } from "./version.js";
 import { CONVERGE_PLANS } from "./convergePlans.js";
 
-export async function generateContent(baseText = "Converge Internet") {
-  console.log(`⚙️ [Gemini ${VERSION.scripts.gemini}] Generating content...`);
+export async function generateContent(prompt) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("Gemini API key missing!");
+    if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const prompt = `Write an engaging Facebook caption for Converge ISP about: ${baseText}.
+    const fullPrompt = `Write an engaging Facebook caption for Converge ISP about: ${prompt}.
 Include emojis and a short call to action.
-Example plan references: ${CONVERGE_PLANS.map(p => p.name).join(", ")}.`;
+Example plan references: ${CONVERGE_PLANS.map(p => p.name).join(", ")}`;
 
     const response = await axios.post(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
-      { contents: [{ parts: [{ text: prompt }] }] },
+      { contents: [{ parts: [{ text: fullPrompt }] }] },
       { headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey } }
     );
 
-    const text =
-      response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Experience ultra-fast Converge Fiber Internet today!";
-    console.log(`✅ Gemini output: ${text}`);
-    return text;
+    return response.data?.candidates?.[0]?.content?.parts?.[0]?.text || prompt;
   } catch (err) {
-    console.error("❌ Gemini error:", err.message);
-    return baseText;
+    console.error("❌ Gemini error:", err.message || err);
+    return prompt;
   }
 }
