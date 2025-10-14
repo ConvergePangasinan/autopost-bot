@@ -1,22 +1,55 @@
 // ===============================================
 // 🚀 Converge AutoPost Bot - Server (Root Version)
-// Version: v3.4.1
+// Version: v3.4.0
 // ===============================================
-
 import express from "express";
 import dotenv from "dotenv";
-import { connectToSheet } from "./googleSheet.js";
+import { JWT } from "google-auth-library";
+import { GoogleSpreadsheet } from "google-spreadsheet";
 import { autoPostToFacebook } from "./facebook.js";
 import { schedulePosts } from "./scheduler.js";
 import { appendLog } from "./logs.js";
 
 dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ===============================================
-// 🧾 Test-All Endpoint (Manual Trigger)
+// 🔐 Load Google Credentials
+// ===============================================
+let creds;
+try {
+  if (!process.env.GOOGLE_CREDENTIALS) throw new Error("Missing GOOGLE_CREDENTIALS in .env");
+  creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+} catch (err) {
+  console.error("❌ Invalid GOOGLE_CREDENTIALS:", err.message);
+  process.exit(1);
+}
+
+// Setup JWT Auth
+const serviceAccountAuth = new JWT({
+  email: creds.client_email,
+  key: creds.private_key,
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
+
+// ===============================================
+// 📄 Connect to Google Sheet
+// ===============================================
+async function connectToSheet() {
+  try {
+    const doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAccountAuth);
+    await doc.loadInfo();
+    console.log("✅ Connected to Google Sheet:", doc.title);
+    return doc;
+  } catch (err) {
+    console.error("❌ Google Sheet connection failed:", err.message);
+    process.exit(1);
+  }
+}
+
+// ===============================================
+// 🧾 Manual Trigger: /test-all
 // ===============================================
 app.get("/test-all", async (req, res) => {
   try {
@@ -24,7 +57,7 @@ app.get("/test-all", async (req, res) => {
     const sheet = doc.sheetsByTitle["Posts"];
     const rows = await sheet.getRows();
 
-    if (!rows.length) return res.send("⚠️ No posts found in sheet.");
+    if (!rows.length) return res.send("⚠️ No posts found.");
 
     for (const row of rows) {
       const message = row.Message || row.Content;
@@ -38,8 +71,7 @@ app.get("/test-all", async (req, res) => {
         });
       }
     }
-
-    res.send("✅ Test-All completed. Check Logs sheet for results.");
+    res.send("✅ Completed. Check Logs sheet.");
   } catch (err) {
     console.error("❌ /test-all error:", err.message);
     res.status(500).send("Server error: " + err.message);
@@ -47,26 +79,16 @@ app.get("/test-all", async (req, res) => {
 });
 
 // ===============================================
-// 🚀 Initialize Scheduler
+// 🚀 Initialize + Scheduler
 // ===============================================
 (async () => {
-  try {
-    const doc = await connectToSheet();
-    await schedulePosts(doc);
-    console.log("🕓 Scheduler initialized (9AM, 12PM, 5PM, 9PM)");
-  } catch (err) {
-    console.error("❌ Failed to start scheduler:", err.message);
-  }
+  const doc = await connectToSheet();
+  schedulePosts(doc);
+  console.log("🕓 Scheduler initialized (9AM, 12PM, 5PM, 9PM)");
 })();
 
-// ===============================================
-// 🟢 Root Route
-// ===============================================
-app.get("/", (req, res) => {
-  res.send("✅ Converge AutoPost Bot Server is running...");
-});
+// Root route
+app.get("/", (req, res) => res.send("✅ Converge AutoPost Bot Server is running..."));
 
-// ===============================================
-// 🖥️ Start Server
-// ===============================================
+// Start server
 app.listen(PORT, () => console.log(`🚀 Server live on port ${PORT}`));
