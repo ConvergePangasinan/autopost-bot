@@ -1,79 +1,54 @@
 // ===============================================
-// 🤖 Gemini AI Service (Root Version)
-// File: gemini.js
-// Supports: gemini-2.5-flash (Free Tier) + Fallback
+// 🤖 Gemini AI Service (Google Free API)
+// Version: v3.3.9 (Gemini 2.5 Flash)
 // ===============================================
 
 import axios from "axios";
+import { CONVERGE_PLANS } from "./convergePlans.js";
 
 export async function generateContent(prompt) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("❌ Missing GEMINI_API_KEY in .env");
+    if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    // ✅ Use latest models first, fallback to legacy if needed
-    const models = [
-      "gemini-2.5-flash",     // Free tier main model
-      "gemini-1.5-flash-002"  // Legacy fallback (still working)
-    ];
-
-    // 🕒 PH timezone
-    const now = new Date();
-    const localTime = now.toLocaleString("en-PH", { timeZone: "Asia/Manila" });
-
+    // Build a smarter, complete prompt
     const fullPrompt = `
-Write a creative Facebook caption for Converge ISP about: ${prompt}.
-Include emojis, a short call to action, and keep it engaging.
+Generate a short, creative, and engaging Facebook caption for Converge Internet.
+Topic: ${prompt}.
+Use emojis and a brief call-to-action.
+Include plan highlights like: ${CONVERGE_PLANS.map(p => p.name).join(", ")}.
 `;
 
-    for (const model of models) {
-      try {
-        console.log(`🕒 [${localTime}] Trying Gemini model: ${model}`);
+    // ✅ Correct and latest Gemini 2.5 Flash model endpoint (Free Tier)
+    const url =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    console.log("🌐 Gemini Request →", url);
 
-        const response = await axios.post(
-          url,
-          {
-            contents: [
-              {
-                parts: [{ text: fullPrompt }]
-              }
-            ]
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              "x-goog-api-key": apiKey
-            }
-          }
-        );
-
-        const text =
-          response.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-        if (text.trim()) {
-          console.log(`✅ Gemini response success (${model})`);
-          return text;
-        } else {
-          console.warn(`⚠️ ${model} returned empty response.`);
-        }
-      } catch (err) {
-        const code = err.response?.status || "UNKNOWN";
-        const msg = err.response?.data?.error?.message || err.message;
-        console.warn(`⚠️ ${model} failed [${code}]: ${msg}`);
-
-        // Handle rate-limit fallback
-        if (code === 429) {
-          console.log("🔄 Rate limit reached — switching model...");
-          continue;
-        }
+    const response = await axios.post(
+      url,
+      { contents: [{ parts: [{ text: fullPrompt }] }] },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        timeout: 20000, // 20s timeout
       }
-    }
+    );
 
-    return "⚠️ Gemini temporarily unavailable. Please try again later.";
+    const text =
+      response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+      "Converge — Fast, reliable internet for every Filipino home! ⚡📶";
+
+    console.log("✅ Gemini Response OK");
+    return text;
   } catch (err) {
-    console.error("❌ Critical Gemini error:", err.message);
-    return "⚠️ Gemini initialization failed.";
+    const errorMsg =
+      err.response?.data?.error?.message || err.message || "Unknown Gemini API error";
+    console.error("❌ Gemini Error:", errorMsg);
+
+    // Fallback default caption
+    return "Converge Internet — Fast, reliable, and affordable plans for your home! 🚀📶 #ConvergeFiber";
   }
 }
