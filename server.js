@@ -1,42 +1,100 @@
+// ===============================================
+// 🚀 Converge AutoPost Bot - Server (Root Version)
+// Version: v3.4.0
+// ===============================================
+
 import express from "express";
 import dotenv from "dotenv";
 import { GoogleSpreadsheet } from "google-spreadsheet";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { setupScheduler } from "./scheduler.js";
-import { logActivity } from "./logs.js";
+import { autoPostToFacebook } from "./facebook.js";
+import { schedulePosts } from "./scheduler.js";
+import { appendLog } from "./logs.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Paths for ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// === Google Sheet Auth ===
-const credsPath = path.join(__dirname, "google-credentials.json");
-if (!fs.existsSync(credsPath)) {
-  console.error("❌ google-credentials.json missing!");
+// ===============================================
+// 🔐 Load Google Credentials from Environment
+// ===============================================
+let creds;
+try {
+  if (process.env.GOOGLE_CREDENTIALS) {
+    creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+  } else {
+    console.error("❌ GOOGLE_CREDENTIALS missing in environment variables!");
+    process.exit(1);
+  }
+} catch (err) {
+  console.error("❌ Failed to parse GOOGLE_CREDENTIALS:", err.message);
   process.exit(1);
 }
 
-const doc = new GoogleSpreadsheet(process.env.SHEET_ID);
-await doc.useServiceAccountAuth(JSON.parse(fs.readFileSync(credsPath)));
-await doc.loadInfo();
+// ===============================================
+// 📄 Connect to Google Sheet
+// ===============================================
+async function connectToSheet() {
+  try {
+    const doc = new GoogleSpreadsheet(process.env.SHEET_ID);
+    await doc.useServiceAccountAuth(creds);
+    await doc.loadInfo();
+    console.log("✅ Connected to Google Sheet:", doc.title);
+    return doc;
+  } catch (err) {
+    console.error("❌ Google Sheets connection error:", err.message);
+    process.exit(1);
+  }
+}
 
-const sheet = doc.sheetsByTitle["Posts"];
-const logSheet = doc.sheetsByTitle["Logs"];
-console.log("✅ Connected to Google Sheets");
+// ===============================================
+// 🧾 Test-All Endpoint (Manual Trigger)
+// ===============================================
+app.get("/test-all", async (req, res) => {
+  try {
+    const doc = await connectToSheet();
+    const sheet = doc.sheetsByTitle["Posts"];
+    const rows = await sheet.getRows();
 
-// === Setup Scheduler ===
-setupScheduler(sheet, logSheet);
+    if (!rows.length) return res.send("⚠️ No posts found in sheet.");
 
-// === Routes ===
-app.get("/", (req, res) => {
-  res.send("🚀 Converge Autopost Bot is running successfully!");
+    for (const row of rows) {
+      const message = row.Message || row.Content;
+      if (message) {
+        const fbResult = await autoPostToFacebook(message);
+        await appendLog(doc, {
+          timestamp: new Date().toLocaleString("en-PH"),
+          message,
+          status: fbResult.success ? "✅ Posted" : "❌ Failed",
+          error: fbResult.error || "",
+        });
+      }
+    }
+
+    res.send("✅ Test-All completed. Check Logs sheet for results.");
+  } catch (err) {
+    console.error("❌ /test-all error:", err.message);
+    res.status(500).send("Server error: " + err.message);
+  }
 });
 
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+// ===============================================
+// 🚀 Initialize Server + Scheduler
+// ===============================================
+(async () => {
+  const doc = await connectToSheet();
+  schedulePosts(doc);
+  console.log("🕓 Scheduler initialized (9AM, 12PM, 5PM, 9PM)");
+})();
+
+// ===============================================
+// 🟢 Root Route
+// ===============================================
+app.get("/", (req, res) => {
+  res.send("✅ Converge AutoPost Bot Server is running...");
+});
+
+// ===============================================
+// 🖥️ Start Server
+// ===============================================
+app.listen(PORT, () => console.log(`🚀 Server live on port ${PORT}`));

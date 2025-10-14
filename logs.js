@@ -1,11 +1,24 @@
-export async function logActivity(logSheet, message) {
+// ===============================================
+// 🧾 Google Sheets Log Utility
+// ===============================================
+
+export async function appendLog(doc, entry) {
   try {
-    await logSheet.addRow({
-      Timestamp: new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
-      Message: message,
+    const sheet = doc.sheetsByTitle["Logs"];
+    if (!sheet) {
+      console.error("⚠️ Logs sheet not found!");
+      return;
+    }
+
+    await sheet.addRow({
+      Timestamp: entry.timestamp,
+      Message: entry.message,
+      Status: entry.status,
+      Error: entry.error || "",
     });
-    console.log("🪵 Log added:", message);
+
+    console.log("📝 Log added:", entry.status);
   } catch (err) {
-    console.error("❌ Error logging:", err.message);
+    console.error("❌ Log append error:", err.message);
   }
 }
