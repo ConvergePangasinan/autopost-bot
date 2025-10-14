@@ -31,6 +31,9 @@ const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAut
 // ===============================================
 // 🧾 Version Route
 // ===============================================
+// ===============================================
+// 🧾 Version Route
+// ===============================================
 app.get("/version", (req, res) => {
   res.json({
     app: VERSION.app,
@@ -39,7 +42,7 @@ app.get("/version", (req, res) => {
     scripts: VERSION.scripts,
     updated: VERSION.updated,
     environment: process.env.NODE_ENV || "development",
-    timestamp: new Date().toLocaleString("en-PH"),
+    timestamp: new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
   });
 });
 
