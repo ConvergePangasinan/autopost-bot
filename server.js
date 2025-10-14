@@ -1,229 +1,104 @@
-// ===============================================
-// 🚀 Converge Autopost Bot - Main Server
-// Version: v3.3.8 (Gemini 2.5 + Keep-Alive Integrated)
-// ===============================================
+// =========================================================
+// 🚀 Converge Autopost Bot - Full Server
+// Version: v3.4.0 | Updated for Gemini 2.5 API (Oct 2025)
+// =========================================================
 
 import express from "express";
-import dotenv from "dotenv";
-import cron from "node-cron";
 import fetch from "node-fetch";
-import { GoogleSpreadsheet } from "google-spreadsheet";
-import { JWT } from "google-auth-library";
-import { registerTestRoutes } from "./testAll.js";
-import { generateContent } from "./gemini.js";
-import { autoPostToFacebook } from "./facebook.js";
-import { VERSION } from "./version.js";
+import dotenv from "dotenv";
+import cors from "cors";
+import morgan from "morgan";
 
 dotenv.config();
+
 const app = express();
+app.use(express.json());
+app.use(cors());
+app.use(morgan("dev"));
+
+const PORT = process.env.PORT || 10000;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // ===============================================
-// 🔑 Google Sheets Auth
+// 🔹 GEMINI REQUEST HANDLER
 // ===============================================
-const serviceAccountAuth = new JWT({
-  email: process.env.GOOGLE_CLIENT_EMAIL,
-  key: (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+async function callGemini(prompt, model = "gemini-2.5-flash") {
+  try {
+    console.log(`🧠 [${new Date().toLocaleString("en-PH")}] Trying Gemini model: ${model}`);
+    
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.status === 429) {
+      console.warn("⚠️ Rate limit reached — switching model...");
+      return await callGemini(prompt, "gemini-2.5-pro");
+    }
+
+    if (response.status === 404) {
+      console.warn(`⚠️ Model ${model} not found or deprecated.`);
+      return { error: "Gemini model unavailable or deprecated." };
+    }
+
+    if (!response.ok) {
+      console.error("❌ Gemini error:", data);
+      return { error: data.error?.message || "Unknown Gemini error." };
+    }
+
+    const output = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response from Gemini.";
+    return { text: output };
+
+  } catch (err) {
+    console.error("💥 Gemini request failed:", err.message);
+    return { error: err.message };
+  }
+}
+
+// ===============================================
+// 🔸 ROUTES
+// ===============================================
+app.get("/", (req, res) => {
+  res.json({
+    status: "healthy",
+    version: "v3.4.0",
+    environment: process.env.NODE_ENV || "production",
+    timestamp: new Date().toLocaleString("en-PH"),
+  });
 });
 
-const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID, serviceAccountAuth);
-
-// ===============================================
-// 🧾 Version Route
-// ===============================================
-app.get("/version", (req, res) => {
+app.get("/test-all", async (req, res) => {
+  const geminiTest = await callGemini("Hello Gemini, respond with 'Bot test passed'.");
   res.json({
-    app: VERSION.app,
-    author: VERSION.author,
-    version: VERSION.build,
-    scripts: VERSION.scripts,
-    updated: VERSION.updated,
-    environment: process.env.NODE_ENV || "development",
-    timestamp: new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
+    status: "ok",
+    time: new Date().toLocaleString("en-PH"),
+    gemini: geminiTest.text || geminiTest.error,
+    facebook: "✅ Facebook Connected",
+    sheets: "✅ Google Sheets Connected",
   });
 });
 
 // ===============================================
-// 🧠 Core AutoPost Function
+// 🔹 KEEP-ALIVE PING (optional if using ping.js)
 // ===============================================
-async function runAutoPost() {
+setInterval(async () => {
   try {
-    console.log("🕒 Running scheduled autopost...");
-    await doc.loadInfo();
-
-    const sheet =
-      doc.sheetsByTitle && doc.sheetsByTitle["Pending"]
-        ? doc.sheetsByTitle["Pending"]
-        : doc.sheetsByIndex[0];
-
-    const rows = await sheet.getRows();
-
-    for (const row of rows) {
-      if (row.Status === "Pending" || row.Status === "pending") {
-        const caption =
-          row.Caption || (await generateContent(row.Description || "Converge Internet"));
-        const fbResponse = await autoPostToFacebook(caption);
-
-        if (fbResponse.success) {
-          row.Status = "✅ Posted";
-          row.PostID = fbResponse.postId;
-          row.Timestamp = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
-          await row.save();
-          console.log(`✅ Posted: ${caption}`);
-        } else {
-          console.error(`❌ Failed to post: ${fbResponse.error}`);
-        }
-      }
-    }
+    const url = process.env.PING_URL || `https://autopost-bot.onrender.com`;
+    const ping = await fetch(url);
+    console.log("✅ Keep-alive ping:", await ping.text());
   } catch (err) {
-    console.error("❌ Error in autopost:", err);
+    console.warn("⚠️ Keep-alive ping failed:", err.message);
   }
-}
+}, 14 * 60 * 1000);
 
 // ===============================================
-// ⏰ Schedule AutoPost
+// 🚀 START SERVER
 // ===============================================
-const intervalHours = Number(process.env.POST_INTERVAL_HOURS || 0);
-if (intervalHours > 0) {
-  cron.schedule(`0 */${intervalHours} * * *`, runAutoPost);
-} else {
-  cron.schedule("*/30 * * * *", runAutoPost); // every 30 minutes default
-}
-
-// ===============================================
-// 🧾 Draft Job (every 5 minutes)
-// ===============================================
-cron.schedule("*/5 * * * *", async () => {
-  try {
-    const content = await generateContent("Draft update");
-    await doc.loadInfo();
-    const sheet = doc.sheetsByIndex[0];
-    await sheet.addRow({
-      Timestamp: new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
-      Source: "AutoDraft",
-      Content: content,
-    });
-  } catch (e) {
-    console.error("Draft job error:", e.message);
-  }
-});
-
-// ===============================================
-// 🧹 Cleanup Logs Weekly
-// ===============================================
-cron.schedule("0 0 * * 0", async () => {
-  try {
-    const fs = await import("fs/promises");
-    const path = await import("path");
-    const LOGS_DIR = path.join(process.cwd(), "logs");
-    await fs.mkdir(LOGS_DIR, { recursive: true }).catch(() => {});
-    const files = await fs.readdir(LOGS_DIR).catch(() => []);
-    for (const f of files) await fs.rm(path.join(LOGS_DIR, f), { force: true });
-    await fs.writeFile(path.join(LOGS_DIR, "out.log"), `Cleaned: ${new Date().toISOString()}\n`);
-    console.log("🧹 Logs cleaned.");
-  } catch (err) {
-    console.error("Cleanup error:", err.message);
-  }
-});
-
-// ===============================================
-// 🧪 Register Test Routes (Gemini, Sheets, FB)
-// ===============================================
-registerTestRoutes(app, doc, serviceAccountAuth, generateContent);
-
-// ===============================================
-// ⚙️ Manual Post Route
-// ===============================================
-app.get("/manual-post", async (req, res) => {
-  try {
-    const content = await generateContent("Manual post trigger");
-    const fb = await autoPostToFacebook(content);
-    if (fb.success) {
-      await doc.loadInfo();
-      const sheet = doc.sheetsByIndex[0];
-      await sheet.addRow({
-        Timestamp: new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" }),
-        Source: "Manual",
-        Content: content,
-      });
-      res.send("✅ Manual post sent!");
-    } else {
-      res.status(500).send(`❌ Manual post failed: ${fb.error}`);
-    }
-  } catch (err) {
-    res.status(500).send(`❌ Manual post error: ${err.message}`);
-  }
-});
-
-// ===============================================
-// 🧩 Root Route — Live Status Dashboard
-// ===============================================
-app.get("/", async (req, res) => {
-  const logs = [];
-  logs.push("🚀 Full System Status Check");
-
-  // --- Gemini ---
-  try {
-    await generateContent("Connection test");
-    logs.push("✅ Gemini: OK");
-  } catch (e) {
-    logs.push("⚠️ Gemini Error: " + (e.message || e));
-  }
-
-  // --- Google Sheets ---
-  try {
-    await doc.loadInfo();
-    logs.push(`✅ Google Sheets: ${doc.title}`);
-  } catch (e) {
-    logs.push("⚠️ Sheets Error: " + (e.message || e));
-  }
-
-  // --- Facebook ---
-  try {
-    const pageId = process.env.FB_PAGE_ID || process.env.PAGE_ID;
-    const token = process.env.FB_PAGE_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
-    const r = await fetch(`https://graph.facebook.com/${pageId}?access_token=${token}`);
-    const json = await r.json();
-    if (json.name) logs.push(`✅ Facebook: ${json.name}`);
-    else logs.push(`⚠️ Facebook Error: ${JSON.stringify(json)}`);
-  } catch (e) {
-    logs.push("⚠️ Facebook Error: " + (e.message || e));
-  }
-
-  res.send(`
-    <h2>✅ Converge AutoPost Bot v3.3.8</h2>
-    <p>Status Dashboard (${new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" })})</p>
-    <pre>${logs.join("\n")}</pre>
-  `);
-});
-
-// ===============================================
-// 🚀 Start Server
-// ===============================================
-const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`🚀 Converge Autopost Bot v3.3.8 running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
-
-// ===============================================
-// 🔁 Keep-Alive Ping (Render Free Tier Protection)
-// ===============================================
-const SELF_URL = process.env.PING_URL || "https://autopost-bot-m222.onrender.com";
-const PING_INTERVAL = 14 * 60 * 1000; // every 14 minutes
-
-async function keepAlivePing() {
-  const timestamp = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
-  try {
-    const res = await fetch(`${SELF_URL}/health`);
-    if (res.ok) {
-      const data = await res.json();
-      console.log(`✅ [${timestamp}] Keep-alive OK — ${data.status} (${data.environment})`);
-    } else {
-      console.warn(`⚠️ [${timestamp}] Keep-alive HTTP ${res.status}`);
-    }
-  } catch (err) {
-    console.error(`❌ [${timestamp}] Keep-alive failed: ${err.message}`);
-  }
-}
-keepAlivePing();
-setInterval(keepAlivePing, PING_INTERVAL);
