@@ -1,12 +1,11 @@
 // ===============================================
 // 🚀 Converge AutoPost Bot - Server (Root Version)
-// Version: v3.4.1 (Fixed Google Sheets Auth)
+// Version: v3.4.0
 // ===============================================
-
+import { startScheduler } from "./scheduler.js";
 import express from "express";
 import dotenv from "dotenv";
-import { GoogleSpreadsheet } from "google-spreadsheet";
-import { JWT } from "google-auth-library";
+import { connectToSheet } from "./googleSheet.js";
 import { autoPostToFacebook } from "./facebook.js";
 import { schedulePosts } from "./scheduler.js";
 import { appendLog } from "./logs.js";
@@ -17,36 +16,30 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ===============================================
-// 🔐 Load Google Credentials from Environment
+// 🔐 Google Credentials Setup
 // ===============================================
 let creds;
 try {
-  if (process.env.GOOGLE_CREDENTIALS) {
-    creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-  } else {
-    console.error("❌ GOOGLE_CREDENTIALS missing in environment variables!");
-    process.exit(1);
-  }
+  if (!process.env.GOOGLE_CREDENTIALS) throw new Error("Missing GOOGLE_CREDENTIALS in environment");
+  creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 } catch (err) {
   console.error("❌ Failed to parse GOOGLE_CREDENTIALS:", err.message);
   process.exit(1);
 }
 
+// Authenticate using google-auth-library
+const serviceAccountAuth = new JWT({
+  email: creds.client_email,
+  key: creds.private_key,
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
+
 // ===============================================
-// 📄 Connect to Google Sheet (Updated Auth Method)
+// 📄 Connect to Google Sheet
 // ===============================================
 async function connectToSheet() {
   try {
-    const doc = new GoogleSpreadsheet(process.env.SHEET_ID);
-
-    // ✅ New Authentication (google-auth-library)
-    const auth = new JWT({
-      email: creds.client_email,
-      key: creds.private_key.replace(/\\n/g, "\n"),
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    });
-
-    await doc.useServiceAccountAuth(auth);
+    const doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAccountAuth);
     await doc.loadInfo();
     console.log("✅ Connected to Google Sheet:", doc.title);
     return doc;

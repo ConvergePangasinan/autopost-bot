@@ -1,7 +1,7 @@
 {
   "name": "converge-autopost-bot",
-  "version": "2.0.1",
-  "description": "🚀 Converge AutoPost Bot Server with Google Sheets + Facebook Scheduler",
+  "version": "3.4.0",
+  "description": "🚀 Converge AutoPost Bot Server with Google Sheets + Facebook Scheduler + Logs",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -15,6 +15,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "google-spreadsheet": "^4.1.2",
+    "google-auth-library": "^9.14.0",
     "moment-timezone": "^0.5.45",
     "node-cron": "^3.0.3"
   },

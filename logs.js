@@ -1,24 +1,28 @@
 // ===============================================
-// 🧾 Google Sheets Log Utility
+// 🧾 Logs Module (v3.4.0)
+// Handles logging of post results into Google Sheet
 // ===============================================
 
-export async function appendLog(doc, entry) {
+export async function appendLog(doc, logData) {
   try {
-    const sheet = doc.sheetsByTitle["Logs"];
-    if (!sheet) {
-      console.error("⚠️ Logs sheet not found!");
+    const logSheet = doc.sheetsByTitle["Logs"];
+
+    if (!logSheet) {
+      console.error("❌ 'Logs' sheet not found!");
       return;
     }
 
-    await sheet.addRow({
-      Timestamp: entry.timestamp,
-      Message: entry.message,
-      Status: entry.status,
-      Error: entry.error || "",
-    });
+    // Prepare row data
+    const rowData = {
+      Timestamp: logData.timestamp || new Date().toLocaleString("en-PH"),
+      Message: logData.message || "",
+      Status: logData.status || "Unknown",
+      Error: logData.error || "",
+    };
 
-    console.log("📝 Log added:", entry.status);
+    await logSheet.addRow(rowData);
+    console.log("🧾 Log added:", rowData.Status, "-", rowData.Message);
   } catch (err) {
-    console.error("❌ Log append error:", err.message);
+    console.error("❌ Failed to append log:", err.message);
   }
 }
