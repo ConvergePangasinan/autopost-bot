@@ -1,34 +1,29 @@
 // ===============================================
-// 🔁 Keep-Alive Ping Script for Render
-// Version: v3.3.8 (Stable)
+// 🔁 Keep-Alive & Health Check Pinger for Render
+// Version: v3.4.1 (OpenRouter Edition)
 // ===============================================
 
 import fetch from "node-fetch";
+import moment from "moment-timezone";
 
-// 🌍 Use your Render app public URL (auto from env or fallback)
-const url = process.env.PING_URL || "https://autopost-bot-m222.onrender.com";
+const timezone = "Asia/Manila";
+const url = process.env.PING_URL || "https://your-render-app.onrender.com";
 
-console.log(`🔁 Starting keep-alive ping to ${url}`);
+console.log(`🔁 Starting 10-minute keep-alive pings to: ${url}`);
+console.log(`🕒 Timezone: ${timezone}`);
 
-// 🕒 Ping every 14 minutes (Render free tier sleeps after 15)
-const PING_INTERVAL = 14 * 60 * 1000;
+const getTime = () => moment().tz(timezone).format("YYYY-MM-DD HH:mm:ss");
 
 async function pingServer() {
-  const timestamp = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
-
   try {
-    const res = await fetch(`${url}/health`);
-    if (res.ok) {
-      const data = await res.json();
-      console.log(`✅ [${timestamp}] Ping successful — Status: ${data.status}, Env: ${data.environment}`);
-    } else {
-      console.warn(`⚠️ [${timestamp}] Ping returned HTTP ${res.status}`);
-    }
+    const res = await fetch(`${url}/test-all`);
+    const text = await res.text();
+    console.log(`[${getTime()}] ✅ Keep-alive ping OK — Response:`, text.slice(0, 100), "...");
   } catch (err) {
-    console.error(`❌ [${timestamp}] Ping failed: ${err.message}`);
+    console.error(`[${getTime()}] ⚠️ Ping failed:`, err.message);
   }
 }
 
-// 🔄 Start ping loop
-pingServer(); // immediate first ping
-setInterval(pingServer, PING_INTERVAL);
+// Run immediately on start, then every 10 minutes
+pingServer();
+setInterval(pingServer, 10 * 60 * 1000);
