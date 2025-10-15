@@ -1,43 +1,38 @@
 // ===============================================
 // 🚀 Converge AutoPost Bot Server
-// Version: v3.4.4 (Root + GOOGLE_CREDENTIALS + Render Port Fix)
+// Version: v3.4.4 (Simplified - Render Ready)
 // ===============================================
 
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import bodyParser from "body-parser";
-import { getPendingPosts, connectToSheet } from "./googleSheet.js";
+import { connectToSheet, getPendingPosts } from "./googleSheet.js";
 import { scheduleAllTasks } from "./scheduler.js";
-import { logMessage } from "./logger.js";
 
 dotenv.config();
 
 const app = express();
+const port = process.env.PORT || 10000; // ✅ Render will assign the port automatically
 
-// ===============================================
-// 🔹 Middleware
-// ===============================================
+// Middleware
 app.use(cors());
-app.use(bodyParser.json({ limit: "10mb" }));
+app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// ===============================================
-// 🔹 Root Endpoint (Render Health Check)
-// ===============================================
-app.get("/", async (req, res) => {
-  res.send("✅ Converge AutoPost Bot Server is running on Render...");
+// =================================================
+// ✅ Root Route
+// =================================================
+app.get("/", (req, res) => {
+  res.send("✅ Converge AutoPost Bot Server is running...");
 });
 
-// ===============================================
-// 🔹 Get Pending Posts
-// ===============================================
+// =================================================
+// ✅ Get Pending Posts (for Preview / Debug)
+// =================================================
 app.get("/api/posts", async (req, res) => {
   try {
     const posts = await getPendingPosts();
-    if (!posts || posts.length === 0) {
-      console.log("⚠️ No pending posts found in Google Sheet");
-    }
     res.json(posts);
   } catch (err) {
     console.error("❌ Error fetching posts:", err.message);
@@ -45,9 +40,9 @@ app.get("/api/posts", async (req, res) => {
   }
 });
 
-// ===============================================
-// 🔹 Manual Trigger Endpoint
-// ===============================================
+// =================================================
+// ✅ Manual Trigger (Run Tasks Now)
+// =================================================
 app.post("/api/manual-trigger", async (req, res) => {
   try {
     console.log("⚙️ Manual trigger started...");
@@ -59,12 +54,12 @@ app.post("/api/manual-trigger", async (req, res) => {
   }
 });
 
-// ===============================================
-// 🔹 Initialize Google Sheet & Scheduler
-// ===============================================
+// =================================================
+// 🕒 Scheduler Startup
+// =================================================
 (async () => {
   try {
-    console.log("🔄 Connecting to Google Sheets...");
+    console.log("🔄 Connecting to Google Sheet...");
     await connectToSheet();
     console.log("🕓 Scheduling all tasks...");
     await scheduleAllTasks();
@@ -73,10 +68,9 @@ app.post("/api/manual-trigger", async (req, res) => {
   }
 })();
 
-// ===============================================
-// 🔹 Start Server (Render Port Binding Fix)
-// ===============================================
-const PORT = process.env.PORT || 10000; // Render default port is 10000
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on Render port ${PORT}`);
+// =================================================
+// 🌐 Start Server
+// =================================================
+app.listen(port, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${port}`);
 });
