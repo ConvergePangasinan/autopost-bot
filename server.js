@@ -1,3 +1,9 @@
+// ===============================================
+// 🚀 Converge AutoPost Bot Server
+// Version: v3.9.0 (Force Header Reload + Pending Detection Fix)
+// Author: Edward John Paulo
+// ===============================================
+
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -21,13 +27,15 @@ const __dirname = path.dirname(__filename);
 
 let doc;
 
-// Load Google credentials
+// ===============================================
+// 🔐 GOOGLE AUTH
+// ===============================================
 let serviceAccount;
 try {
   serviceAccount = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-  logMessage("✅ Loaded GOOGLE_CREDENTIALS");
+  logMessage("✅ Loaded GOOGLE_CREDENTIALS from .env");
 } catch (err) {
-  console.error("❌ GOOGLE_CREDENTIALS parse error:", err);
+  console.error("❌ Failed to parse GOOGLE_CREDENTIALS", err);
   process.exit(1);
 }
 
@@ -37,63 +45,70 @@ const serviceAuth = new JWT({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// Connect to sheet
+// ===============================================
+// 📊 CONNECT TO GOOGLE SHEET
+// ===============================================
 async function connectSheet(force = false) {
   if (doc && !force) return doc;
   doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAuth);
   await doc.loadInfo();
-  logMessage(`📄 Connected to sheet: ${doc.title}`);
+  logMessage(`📄 Connected to Google Sheet: ${doc.title}`);
   return doc;
 }
 
-// Normalize a string (lowercase + remove whitespace + remove invisible)
-function normalizeStr(str) {
-  return str
-    .toString()
+await connectSheet();
+scheduleAllTasks();
+
+// ===============================================
+// 🧩 HELPER — Normalize text
+// ===============================================
+function normalize(str) {
+  return String(str || "")
     .toLowerCase()
-    .replace(/\s+/g, "")        // remove spaces
-    .replace(/\u00a0/g, "")     // non-breaking space
-    .replace(/[\u200B-\u200D]/g, "") // zero-width spaces
+    .replace(/\s+/g, "")
+    .replace(/\u00a0/g, "")
+    .replace(/[\u200B-\u200D]/g, "")
     .trim();
 }
 
-// Find the key (column name) in a row object that best matches “status”
-function findStatusKey(row) {
-  const keys = Object.keys(row);
-  for (let k of keys) {
-    const norm = normalizeStr(k);
-    if (norm === "status" || norm.includes("status")) {
-      return k;
-    }
-  }
-  return null;
-}
+// ===============================================
+// 🧠 ROOT
+// ===============================================
+app.get("/", (req, res) =>
+  res.send(`
+    <div style="text-align:center;margin-top:40px;">
+      <h2>🚀 Converge AutoPost Bot</h2>
+      <p>Welcome, Master Edward!</p>
+      <a href="/preview" style="padding:8px 14px;background:#007bff;color:white;border-radius:8px;text-decoration:none;">Open Preview</a>
+      <br><br>
+      <a href="/facebook-preview" style="padding:8px 14px;background:#1877f2;color:white;border-radius:8px;text-decoration:none;">Facebook Preview UI</a>
+    </div>
+  `)
+);
 
-// API for JSON
+// ===============================================
+// 📡 /api/random-post
+// ===============================================
 app.get("/api/random-post", async (req, res) => {
   try {
     const doc = await connectSheet(true);
     const sheet = doc.sheetsByTitle["Posts"];
+    await sheet.loadHeaderRow(); // ⚡ Force refresh header
     const rows = await sheet.getRows();
 
     console.log("📊 Total rows:", rows.length);
-    // Debug: show raw keys of row 1
-    if (rows.length > 0) {
-      console.log("Row 1 keys:", Object.keys(rows[0]));
-    }
 
-    const pending = rows.filter((row, idx) => {
-      const key = findStatusKey(row);
-      const val = key ? row[key] : undefined;
-      console.log(`Row ${idx + 1} statusKey:`, key, "value:", JSON.stringify(val));
-      return val && normalizeStr(val).includes("pending");
+    const pending = rows.filter((r, i) => {
+      const keys = Object.keys(r);
+      const key = keys.find(k => normalize(k).includes("status"));
+      const val = key ? r[key] : "";
+      console.log(`Row ${i + 1}: key="${key}" val="${val}"`);
+      return val && normalize(val) === "pending";
     });
 
     console.log("✅ Pending count:", pending.length);
 
-    if (pending.length === 0) {
-      return res.json({ message: "No pending posts found." });
-    }
+    if (!pending.length) return res.json({ message: "No pending posts found." });
 
     const post = pending[Math.floor(Math.random() * pending.length)];
 
@@ -102,54 +117,57 @@ app.get("/api/random-post", async (req, res) => {
       Message: post.Message,
       Image_URL: post.Image_URL,
       Scheduled_Time: post.Scheduled_Time,
-      Status: post[findStatusKey(post)],
+      Status: post.Status,
     });
   } catch (err) {
-    console.error("❌ /api/random-post error:", err);
+    console.error("❌ /api/random-post:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Bootstrap HTML preview
+// ===============================================
+// 🌐 /preview (Bootstrap responsive)
+// ===============================================
 app.get("/preview", async (req, res) => {
   try {
     const doc = await connectSheet(true);
     const sheet = doc.sheetsByTitle["Posts"];
+    await sheet.loadHeaderRow();
     const rows = await sheet.getRows();
 
-    const pending = rows.filter((row, idx) => {
-      const key = findStatusKey(row);
-      const val = key ? row[key] : undefined;
-      return val && normalizeStr(val).includes("pending");
+    const pending = rows.filter((r) => {
+      const keys = Object.keys(r);
+      const key = keys.find(k => normalize(k).includes("status"));
+      const val = key ? r[key] : "";
+      return val && normalize(val) === "pending";
     });
 
-    if (pending.length === 0) {
+    if (!pending.length) {
       return res.send(`
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <div class="container text-center mt-5">
           <div class="alert alert-warning shadow">
             <h4>No Pending Posts Found</h4>
-            <a href="/preview" class="btn btn-primary mt-3">Reload</a>
+            <a href="/preview" class="btn btn-primary mt-3">🔁 Reload</a>
           </div>
         </div>
       `);
     }
 
     const post = pending[Math.floor(Math.random() * pending.length)];
-    const statusKey = findStatusKey(post);
 
     res.send(`
       <!DOCTYPE html>
       <html lang="en">
       <head>
-        <meta charset="UTF-8"/>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-        <title>Preview</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Converge Preview</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
       </head>
       <body class="bg-light text-center py-5">
         <div class="container">
-          <div class="card shadow mx-auto" style="max-width:400px;">
+          <div class="card shadow mx-auto" style="max-width: 400px;">
             ${post.Image_URL ? `<img src="${post.Image_URL}" class="card-img-top" alt="Preview">` : ""}
             <div class="card-body">
               <h5 class="card-title">${post.Page_Name || ""}</h5>
@@ -163,26 +181,21 @@ app.get("/preview", async (req, res) => {
       </html>
     `);
   } catch (err) {
-    console.error("❌ /preview error:", err);
+    console.error("❌ Error in /preview:", err);
     res.status(500).send("Internal Server Error");
   }
 });
 
+// ===============================================
+// 🪩 /facebook-preview
+// ===============================================
 app.get("/facebook-preview", (req, res) => {
   res.sendFile(path.join(__dirname, "facebook-preview.html"));
 });
 
-app.get("/", (req, res) => {
-  res.send(`
-    <div style="text-align:center;margin-top:40px;">
-      <h2>🚀 AutoPost Bot</h2>
-      <a href="/preview">Preview</a> |
-      <a href="/facebook-preview">Facebook Preview</a> |
-      <a href="/api/random-post">JSON API</a>
-    </div>
-  `);
-});
-
+// ===============================================
+// 🚀 START SERVER
+// ===============================================
 app.listen(PORT, () => {
-  logMessage(`✅ Server listening on port ${PORT}`);
+  logMessage(`✅ Server running on port ${PORT}`);
 });
