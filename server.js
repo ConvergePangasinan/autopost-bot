@@ -1,6 +1,6 @@
 // ===============================================
 // 🚀 Converge AutoPost Bot Server
-// Version: v3.6.0 (Preview Fix + Random Post)
+// Version: v3.6.0 (Root + GOOGLE_CREDENTIALS + Preview)
 // ===============================================
 
 import express from "express";
@@ -14,22 +14,29 @@ import { JWT } from "google-auth-library";
 import { scheduleAllTasks } from "./scheduler.js";
 import { logMessage } from "./logs.js";
 
+// ===============================================
+// ⚙️ Basic Setup
+// ===============================================
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ================================
-// 🌐 Middleware
-// ================================
 app.use(cors());
 app.use(bodyParser.json());
 
-// ================================
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let doc; // will hold the Google Sheet connection
+
+// ===============================================
 // 🔐 Load Google Service Credentials
-// ================================
+// ===============================================
 let serviceAccount;
 try {
-  if (!process.env.GOOGLE_CREDENTIALS) throw new Error("Missing GOOGLE_CREDENTIALS in .env");
+  if (!process.env.GOOGLE_CREDENTIALS)
+    throw new Error("Missing GOOGLE_CREDENTIALS in .env");
+
   serviceAccount = JSON.parse(process.env.GOOGLE_CREDENTIALS);
   logMessage("✅ Loaded GOOGLE_CREDENTIALS from .env");
 } catch (err) {
@@ -38,24 +45,22 @@ try {
   process.exit(1);
 }
 
-// ================================
+// ===============================================
 // 🔑 Google Auth Setup
-// ================================
+// ===============================================
 const serviceAuth = new JWT({
   email: serviceAccount.client_email,
   key: serviceAccount.private_key.replace(/\\n/g, "\n"),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// ================================
+// ===============================================
 // 📊 Connect to Google Sheet
-// ================================
-let sheetDoc;
+// ===============================================
 async function connectSheet() {
   try {
-    const doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAuth);
+    doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAuth);
     await doc.loadInfo();
-    sheetDoc = doc;
     logMessage(`📄 Connected to Google Sheet: ${doc.title}`);
     return doc;
   } catch (err) {
@@ -64,52 +69,112 @@ async function connectSheet() {
   }
 }
 
-// ================================
-// 🧠 Routes
-// ================================
+// Initialize connection and scheduled tasks
+connectSheet();
+scheduleAllTasks();
+
+// ===============================================
+// 🧠 Basic Routes
+// ===============================================
 app.get("/", (req, res) => {
   res.send("🚀 Converge AutoPost Bot Server running successfully...");
 });
 
-// Fetch a random post from the "Posts" sheet
-app.get("/api/random-post", async (req, res) => {
+app.get("/test-facebook", (req, res) => {
+  res.send(`
+    <h2>✅ Facebook API Test</h2>
+    <p>This route is for testing Facebook post simulation.</p>
+    <a href="/preview" target="_blank">Open Facebook Preview</a>
+  `);
+});
+
+// ===============================================
+// ✅ PREVIEW / TEST RANDOM POST ROUTE (uses "Posts" tab)
+// ===============================================
+app.get("/preview", async (req, res) => {
   try {
-    if (!sheetDoc) await connectSheet();
-    const sheet = sheetDoc.sheetsByTitle["Posts"];
-    await sheet.loadHeaderRow();
+    console.log("🔍 Connecting to Google Sheets for preview...");
+
+    // Ensure Google Sheet is ready
+    if (!doc) await connectSheet();
+    await doc.loadInfo();
+
+    const sheet = doc.sheetsByTitle["Posts"];
+    if (!sheet) {
+      console.error("❌ 'Posts' tab not found in the sheet.");
+      return res.status(404).send("❌ 'Posts' tab not found.");
+    }
+
+    // Fetch all rows
     const rows = await sheet.getRows();
+    console.log(`📄 Found ${rows.length} rows in Posts tab.`);
 
-    const posts = rows
-      .map(r => ({
-        id: r.ID,
-        pageName: r.Page_Name,
-        message: r.Message,
-        imageUrl: r.Image_URL,
-        status: r.Status
-      }))
-      .filter(p => p.message && p.status.toLowerCase() === "pending");
+    // Filter only pending posts
+    const pendingPosts = rows.filter(
+      (r) => String(r.Status || "").trim().toLowerCase() === "pending"
+    );
 
-    if (!posts.length) return res.json({ message: "No pending posts found" });
+    if (pendingPosts.length === 0) {
+      console.log("⚠️ No pending posts found.");
+      return res.send(`
+        <div style="text-align:center;margin-top:40px;">
+          <div style="display:inline-block;padding:20px;background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+            <h3>My Page</h3>
+            <p>No pending posts found</p>
+            <a href="/preview" style="padding:8px 12px;background:#007bff;color:#fff;border-radius:6px;text-decoration:none;">Next Random Post</a>
+          </div>
+        </div>
+      `);
+    }
 
-    const randomPost = posts[Math.floor(Math.random() * posts.length)];
-    res.json(randomPost);
+    // Pick a random pending post
+    const randomPost = pendingPosts[Math.floor(Math.random() * pendingPosts.length)];
+
+    // Log preview access
+    const logSheet = doc.sheetsByTitle["Logs"];
+    if (logSheet) {
+      await logSheet.addRow({
+        Timestamp: new Date().toISOString(),
+        Status: "Preview",
+        Message: `Viewed random post for ${randomPost.Page_Name}`,
+      });
+    }
+
+    // Display preview
+    res.send(`
+      <div style="text-align:center;margin-top:40px;">
+        <div style="display:inline-block;padding:20px;background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);max-width:350px;">
+          <h3>${randomPost.Page_Name}</h3>
+          <p>${randomPost.Message}</p>
+          <img src="${randomPost.Image_URL}" alt="Preview" style="width:100%;border-radius:10px;margin-bottom:10px;">
+          <p><b>Schedule:</b> ${randomPost.Scheduled_Time}</p>
+          <a href="/preview" style="padding:8px 12px;background:#007bff;color:#fff;border-radius:6px;text-decoration:none;">Next Random Post</a>
+        </div>
+      </div>
+    `);
   } catch (err) {
-    console.error("❌ Error fetching random post:", err);
-    res.status(500).json({ error: "Failed to fetch post" });
+    console.error("❌ Error in /preview:", err);
+    res.status(500).send("Internal Server Error");
   }
 });
 
-// Serve the preview HTML
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-app.use("/preview", express.static(path.join(__dirname, "facebook-preview.html")));
-
-// ================================
+// ===============================================
 // 🚀 Start Server
-// ================================
-connectSheet();
-scheduleAllTasks();
-
+// ===============================================
 app.listen(PORT, () => {
   logMessage(`✅ Server running on port ${PORT}`);
+});
+
+// ===============================================
+// 🧾 Logging Helper (For Sheets)
+// ===============================================
+export async function appendLog(doc, entry) {
+  try {
+    const sheet = doc.sheetsByTitle["Logs"];
+    if (!sheet) throw new Error("Logs sheet not found");
+    await sheet.addRow(entry);
+    console.log(`📝 Log added: ${entry.status} - ${entry.message}`);
+  } catch (err) {
+    console.error("❌ Error writing to Logs sheet:", err.message);
+  }
 });

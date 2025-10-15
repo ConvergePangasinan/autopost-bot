@@ -1,83 +1,60 @@
-// ===============================================
-// 📘 Converge AutoPost Bot - Facebook Module
-// Version: v3.4.3 (Test Mode - Preview Only)
-// ===============================================
+const axios = require("axios");
+const { google } = require("googleapis");
 
-import fetch from "node-fetch";
-import { logMessage } from "./logs.js";
+const FACEBOOK_GRAPH_URL = process.env.FACEBOOK_GRAPH_URL;
+const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-/**
- * 🧪 TEST MODE FUNCTION
- * -----------------------------------------------
- * Instead of actually posting to Facebook,
- * this function just shows what would be posted.
- * -----------------------------------------------
- * @param {string} message - The post message
- * @param {string} imageUrl - Optional image URL
- * @returns {object} preview result
- */
-export async function autoPostToFacebook(message, imageUrl = "") {
-  try {
-    console.log("========================================");
-    console.log("🧪 FACEBOOK POST PREVIEW (NO POST MADE)");
-    console.log("========================================");
-    console.log("📝 Message:");
-    console.log(message);
-    if (imageUrl) {
-      console.log("🖼️ Image URL:");
-      console.log(imageUrl);
-    } else {
-      console.log("🖼️ No image provided.");
-    }
-    console.log("========================================");
-
-    // Return simulated success
-    return {
-      success: true,
-      preview: true,
-      message: "🧪 Test mode: Post preview only. No data sent to Facebook.",
-    };
-  } catch (error) {
-    console.error("❌ Facebook test error:", error.message);
-    logMessage(`❌ Facebook test failed: ${error.message}`);
-    return { success: false, error: error.message };
-  }
+// Authenticate Google Sheets
+function getSheetsClient() {
+  const auth = new google.auth.JWT(
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    null,
+    process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    ["https://www.googleapis.com/auth/spreadsheets"]
+  );
+  return google.sheets({ version: "v4", auth });
 }
 
-/**
- * 🧾 (Optional) Production Post Function
- * -----------------------------------------------
- * Keep this commented out — used for real posting.
- * Uncomment only when you’re ready for live posting.
- */
-/*
-export async function autoPostToFacebook(message, imageUrl = "", pageAccessToken) {
-  try {
-    const url = imageUrl
-      ? `https://graph.facebook.com/v20.0/me/photos`
-      : `https://graph.facebook.com/v20.0/me/feed`;
-
-    const payload = imageUrl
-      ? { url: imageUrl, caption: message, access_token: pageAccessToken }
-      : { message, access_token: pageAccessToken };
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error.message);
-    }
-
-    logMessage(`✅ Posted to Facebook: ${data.id}`);
-    return { success: true, postId: data.id };
-  } catch (error) {
-    logMessage(`❌ Failed to post to Facebook: ${error.message}`);
-    return { success: false, error: error.message };
-  }
+// Fetch data from the "Posts" tab
+async function getPosts() {
+  const sheets = getSheetsClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: "Posts!A2:H",
+  });
+  return res.data.values || [];
 }
-*/
+
+// Update a specific row in Posts sheet
+async function updatePostRow(rowIndex, status, errorMessage = "") {
+  const sheets = getSheetsClient();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `Posts!G${rowIndex}:H${rowIndex}`,
+    valueInputOption: "RAW",
+    requestBody: { values: [[status, errorMessage]] },
+  });
+}
+
+// Add log entry to Logs sheet
+async function addLog(page, message, status, error = "") {
+  const sheets = getSheetsClient();
+  const timestamp = new Date().toISOString();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: "Logs!A:D",
+    valueInputOption: "RAW",
+    requestBody: { values: [[timestamp, page, status, error || message]] },
+  });
+}
+
+// Facebook post sender
+async function postToFacebook(token, message, imageUrl) {
+  const url = `${FACEBOOK_GRAPH_URL}/me/photos`;
+  const res = await axios.post(url, null, {
+    params: { access_token: token, url: imageUrl, caption: message },
+  });
+  return res.data;
+}
+
+module.exports = { getPosts, updatePostRow, addLog, postToFacebook };
