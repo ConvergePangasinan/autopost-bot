@@ -1,7 +1,6 @@
 // ===============================================
-// 🚀 Converge AutoPost Bot Server (v3.8.0)
-// Author: Edward John Paulo
-// Features: Case-insensitive Pending Fix + Responsive Preview Page
+// 🚀 Converge AutoPost Bot Server
+// Version: v3.6.4 (Column Auto-Detection Fix)
 // ===============================================
 
 import express from "express";
@@ -15,9 +14,6 @@ import { JWT } from "google-auth-library";
 import { scheduleAllTasks } from "./scheduler.js";
 import { logMessage } from "./logs.js";
 
-// ===============================================
-// ⚙️ Basic Setup
-// ===============================================
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,158 +24,143 @@ app.use(bodyParser.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let doc; // Google Sheet connection
+let doc;
 
 // ===============================================
-// 🔐 Google Credentials Setup
+// 🔐 Load Google Service Credentials
 // ===============================================
 let serviceAccount;
 try {
-  if (!process.env.GOOGLE_CREDENTIALS)
-    throw new Error("Missing GOOGLE_CREDENTIALS in .env");
-
   serviceAccount = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-  logMessage("✅ GOOGLE_CREDENTIALS loaded successfully.");
+  logMessage("✅ Loaded GOOGLE_CREDENTIALS from .env");
 } catch (err) {
-  console.error("❌ Failed to parse GOOGLE_CREDENTIALS:", err);
+  logMessage("❌ Failed to parse GOOGLE_CREDENTIALS");
+  console.error(err);
   process.exit(1);
 }
 
-// ===============================================
-// 🔑 Google Auth Setup
-// ===============================================
 const serviceAuth = new JWT({
   email: serviceAccount.client_email,
   key: serviceAccount.private_key.replace(/\\n/g, "\n"),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
-// ===============================================
-// 📊 Connect to Google Sheet
-// ===============================================
-async function connectSheet() {
+async function connectSheet(force = false) {
   try {
+    if (doc && !force) return doc;
     doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAuth);
     await doc.loadInfo();
-    console.log(`📄 Connected to Google Sheet: ${doc.title}`);
+    logMessage(`📄 Connected to Google Sheet: ${doc.title}`);
+    return doc;
   } catch (err) {
-    console.error("⚠️ Failed to connect to Google Sheet:", err);
+    logMessage("⚠️ Failed to connect to Google Sheet");
+    console.error(err);
   }
 }
 
-// Connect once and schedule background tasks
-connectSheet();
+await connectSheet();
 scheduleAllTasks();
 
 // ===============================================
-// 🧠 Root Test Route
+// 🔎 Helper to normalize keys (case-insensitive)
+// ===============================================
+function normalizeKey(obj, keyName) {
+  const keys = Object.keys(obj);
+  const normalizedKey = keys.find(
+    (k) => k.toLowerCase().trim() === keyName.toLowerCase().trim()
+  );
+  return normalizedKey ? obj[normalizedKey] : undefined;
+}
+
+// ===============================================
+// 🧠 Routes
 // ===============================================
 app.get("/", (req, res) => {
-  res.send(`
-    <div style="text-align:center;margin-top:40px;">
-      <h2>🚀 Converge AutoPost Bot Server</h2>
-      <p>Server running successfully...</p>
-      <a href="/preview" style="padding:10px 20px;background:#007bff;color:#fff;border-radius:6px;text-decoration:none;">Open Preview Page</a>
-    </div>
-  `);
+  res.send("🚀 Converge AutoPost Bot Server running successfully...");
+});
+
+app.get("/preview-json", async (req, res) => {
+  try {
+    const doc = await connectSheet(true);
+    const sheet = doc.sheetsByTitle["Posts"];
+    const rows = await sheet.getRows();
+
+    const pendingPosts = rows.filter((row) => {
+      const status = normalizeKey(row, "Status");
+      return status && status.toString().toLowerCase().includes("pending");
+    });
+
+    res.json({
+      totalRows: rows.length,
+      pendingCount: pendingPosts.length,
+      data: pendingPosts.map((r) => ({
+        Page_Name: normalizeKey(r, "Page_Name"),
+        Message: normalizeKey(r, "Message"),
+        Status: normalizeKey(r, "Status"),
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ===============================================
-// ✅ Responsive Preview Page Route
+// 🌐 /preview (Bootstrap-friendly)
 // ===============================================
 app.get("/preview", async (req, res) => {
   try {
-    if (!doc) await connectSheet();
-    await doc.loadInfo();
-
+    const doc = await connectSheet(true);
     const sheet = doc.sheetsByTitle["Posts"];
-    if (!sheet) return res.status(404).send("❌ 'Posts' tab not found.");
-
     const rows = await sheet.getRows();
-    console.log("📊 Total rows found:", rows.length);
 
-    // Fix for hidden Unicode and invisible spaces
-    const normalizeText = (text) =>
-      String(text || "")
-        .normalize("NFKC") // normalize Unicode
-        .replace(/[^\x20-\x7E]+/g, "") // remove non-visible chars
-        .trim()
-        .toLowerCase();
-
-    const pendingPosts = rows.filter((r) => normalizeText(r.Status) === "pending");
-
-    console.log("✅ Pending posts found:", pendingPosts.length);
+    const pendingPosts = rows.filter((row) => {
+      const status = normalizeKey(row, "Status");
+      return status && status.toString().toLowerCase().includes("pending");
+    });
 
     if (pendingPosts.length === 0) {
       return res.send(`
-        <style>
-          body {font-family:Poppins, sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;background:#f2f4f8;margin:0;}
-          .card {background:#fff;padding:30px 40px;border-radius:16px;box-shadow:0 4px 10px rgba(0,0,0,0.1);text-align:center;}
-          button {padding:10px 20px;background:#007bff;color:#fff;border:none;border-radius:6px;cursor:pointer;}
-        </style>
-        <div class="card">
-          <h3>My Page</h3>
-          <p>No pending posts found</p>
-          <a href="/preview"><button>Next Random Post</button></a>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <div class="container text-center mt-5">
+          <div class="alert alert-warning shadow">
+            <h4>No Pending Posts Found</h4>
+            <a href="/preview" class="btn btn-primary mt-3">🔁 Try Again</a>
+          </div>
         </div>
       `);
     }
 
-    const randomPost = pendingPosts[Math.floor(Math.random() * pendingPosts.length)];
+    const randomPost =
+      pendingPosts[Math.floor(Math.random() * pendingPosts.length)];
 
-    // Responsive HTML
+    const img = normalizeKey(randomPost, "Image_URL");
+    const page = normalizeKey(randomPost, "Page_Name");
+    const msg = normalizeKey(randomPost, "Message");
+    const sched = normalizeKey(randomPost, "Scheduled_Time");
+
     res.send(`
-      <style>
-        body {
-          font-family: 'Poppins', sans-serif;
-          background: linear-gradient(135deg, #f0f2f5, #d9e4ff);
-          margin: 0;
-          padding: 0;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 100vh;
-        }
-        .card {
-          background: #fff;
-          padding: 20px;
-          border-radius: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-          width: 90%;
-          max-width: 420px;
-          text-align: center;
-        }
-        .card img {
-          width: 100%;
-          border-radius: 12px;
-          margin: 10px 0;
-        }
-        .btn {
-          display: inline-block;
-          padding: 10px 16px;
-          background: #007bff;
-          color: #fff;
-          border-radius: 8px;
-          text-decoration: none;
-          font-weight: 500;
-          margin-top: 12px;
-        }
-        @media (max-width: 480px) {
-          .card { padding: 15px; }
-          .btn { padding: 8px 14px; }
-        }
-      </style>
-      <div class="card">
-        <h3>${randomPost.Page_Name || "Unnamed Page"}</h3>
-        <p>${randomPost.Message || "(No message provided)"}</p>
-        ${
-          randomPost.Image_URL
-            ? `<img src="${randomPost.Image_URL}" alt="Preview Image" />`
-            : `<div style="color:#777;">No image available</div>`
-        }
-        <p><b>Schedule:</b> ${randomPost.Scheduled_Time || "Not set"}</p>
-        <a href="/preview" class="btn">Next Random Post</a>
-      </div>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Converge Preview</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+      </head>
+      <body class="bg-light text-center py-5">
+        <div class="container">
+          <div class="card shadow mx-auto" style="max-width: 400px;">
+            <img src="${img}" class="card-img-top" alt="Preview Image">
+            <div class="card-body">
+              <h5 class="card-title">${page}</h5>
+              <p class="card-text">${msg}</p>
+              <p class="text-muted"><b>Schedule:</b> ${sched}</p>
+              <a href="/preview" class="btn btn-primary w-100">Next Random Post</a>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
     `);
   } catch (err) {
     console.error("❌ Error in /preview:", err);
@@ -190,4 +171,6 @@ app.get("/preview", async (req, res) => {
 // ===============================================
 // 🚀 Start Server
 // ===============================================
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  logMessage(`✅ Server running on port ${PORT}`);
+});
