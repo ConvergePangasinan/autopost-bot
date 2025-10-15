@@ -1,18 +1,32 @@
 // ===============================================
-// 🔁 Keep-Alive Ping Script for Render
-// Version: v3.3.9
+// 🔄 Keep-Alive Pinger - Converge AutoPost Bot
+// Version: v3.4.3
+// Author: Edward John Paulo
 // ===============================================
 
+import cron from "node-cron";
 import fetch from "node-fetch";
+import { logMessage } from "./logs.js";
 
-const url = process.env.PING_URL || "https://your-app-name.onrender.com";
-console.log(`🔁 Starting keep-alive ping to ${url}`);
+// ✅ Replace this with your Render server URL
+const SERVER_URL = process.env.SERVER_URL || "https://your-render-app-name.onrender.com";
 
-setInterval(async () => {
+// ✅ Ping the server to keep it alive
+async function pingServer() {
   try {
-    const res = await fetch(url + "/test-all");
-    console.log("✅ Keep-alive ping successful:", await res.text());
-  } catch (err) {
-    console.error("⚠️ Ping failed:", err.message);
+    const res = await fetch(SERVER_URL);
+    if (res.ok) {
+      logMessage(`🟢 Keep-alive ping successful at ${new Date().toLocaleTimeString()}`);
+    } else {
+      logMessage(`🟡 Ping responded with status ${res.status}`);
+    }
+  } catch (error) {
+    logMessage(`🔴 Ping failed: ${error.message}`);
   }
-}, 10 * 60 * 1000); // every 10 minutes
+}
+
+// ✅ Schedule the pinger every 10 minutes
+export function startKeepAlive() {
+  logMessage("✅ Keep-Alive pinger initialized (every 10 minutes)");
+  cron.schedule("*/10 * * * *", pingServer);
+}

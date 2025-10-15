@@ -1,22 +1,46 @@
 // ===============================================
-// 🧾 Logging Utility (Used by all modules)
-// Version: v3.4.2
+// 🧾 Logs Manager - Converge AutoPost Bot
+// Version: v3.4.4
 // ===============================================
 
+import { connectToSheet } from "./googleSheet.js";
+
+// ✅ Basic console log wrapper
 export function logMessage(message) {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${message}`);
+  const timestamp = new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" });
+  const log = `[${timestamp}] ${message}`;
+  console.log(log);
+  return log;
 }
 
-// Optional: appendLog support for Google Sheet logging
+// ✅ Append a new log row in Google Sheet
 export async function appendLog(doc, entry) {
   try {
-    const sheet = doc.sheetsByTitle["Logs"];
-    if (!sheet) throw new Error("Logs sheet not found");
+    if (!doc) {
+      doc = await connectToSheet();
+    }
 
-    await sheet.addRow(entry);
-    console.log(`📝 Log added: ${entry.status} - ${entry.message}`);
+    const logSheetName = process.env.LOG_SHEET_TAB || "Logs";
+    let logSheet = doc.sheetsByTitle[logSheetName];
+
+    // Create the "Logs" sheet if it doesn’t exist
+    if (!logSheet) {
+      logMessage("⚙️ 'Logs' sheet not found, creating one...");
+      logSheet = await doc.addSheet({
+        title: logSheetName,
+        headerValues: ["Timestamp", "Status", "Message"],
+      });
+    }
+
+    // Append the log row
+    await logSheet.addRow({
+      Timestamp: entry.timestamp || new Date().toISOString(),
+      Status: entry.status || "Info",
+      Message: entry.message || "",
+    });
+
+    logMessage(`📝 Log appended: ${entry.status || "Info"} - ${entry.message}`);
   } catch (err) {
-    console.error("❌ Error writing to Logs sheet:", err.message);
+    console.error("❌ Failed to append log:", err.message);
   }
 }
