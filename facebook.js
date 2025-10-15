@@ -1,42 +1,83 @@
 // ===============================================
-// 📘 Facebook AutoPost Utility
-// Version: v3.4.1
+// 📘 Converge AutoPost Bot - Facebook Module
+// Version: v3.4.3 (Test Mode - Preview Only)
 // ===============================================
-import axios from "axios";
-import dotenv from "dotenv";
 
-dotenv.config();
+import fetch from "node-fetch";
+import { logMessage } from "./logs.js";
 
 /**
- * Auto-posts a message to Facebook using Graph API
- * @param {string} message - The post text
- * @returns {Object} { success: boolean, error?: string }
+ * 🧪 TEST MODE FUNCTION
+ * -----------------------------------------------
+ * Instead of actually posting to Facebook,
+ * this function just shows what would be posted.
+ * -----------------------------------------------
+ * @param {string} message - The post message
+ * @param {string} imageUrl - Optional image URL
+ * @returns {object} preview result
  */
-export async function autoPostToFacebook(message) {
+export async function autoPostToFacebook(message, imageUrl = "") {
   try {
-    if (!process.env.FB_PAGE_ID || !process.env.FB_ACCESS_TOKEN) {
-      throw new Error("Missing Facebook credentials in environment (.env)");
-    }
-
-    const url = `https://graph.facebook.com/${process.env.FB_PAGE_ID}/feed`;
-    const params = {
-      message,
-      access_token: process.env.FB_ACCESS_TOKEN,
-    };
-
-    const response = await axios.post(url, null, { params });
-
-    if (response.data.id) {
-      console.log(`✅ Posted to Facebook successfully: ${response.data.id}`);
-      return { success: true };
+    console.log("========================================");
+    console.log("🧪 FACEBOOK POST PREVIEW (NO POST MADE)");
+    console.log("========================================");
+    console.log("📝 Message:");
+    console.log(message);
+    if (imageUrl) {
+      console.log("🖼️ Image URL:");
+      console.log(imageUrl);
     } else {
-      throw new Error("Facebook API did not return a post ID.");
+      console.log("🖼️ No image provided.");
     }
-  } catch (err) {
-    console.error("❌ Facebook posting error:", err.response?.data || err.message);
+    console.log("========================================");
+
+    // Return simulated success
     return {
-      success: false,
-      error: err.response?.data?.error?.message || err.message,
+      success: true,
+      preview: true,
+      message: "🧪 Test mode: Post preview only. No data sent to Facebook.",
     };
+  } catch (error) {
+    console.error("❌ Facebook test error:", error.message);
+    logMessage(`❌ Facebook test failed: ${error.message}`);
+    return { success: false, error: error.message };
   }
 }
+
+/**
+ * 🧾 (Optional) Production Post Function
+ * -----------------------------------------------
+ * Keep this commented out — used for real posting.
+ * Uncomment only when you’re ready for live posting.
+ */
+/*
+export async function autoPostToFacebook(message, imageUrl = "", pageAccessToken) {
+  try {
+    const url = imageUrl
+      ? `https://graph.facebook.com/v20.0/me/photos`
+      : `https://graph.facebook.com/v20.0/me/feed`;
+
+    const payload = imageUrl
+      ? { url: imageUrl, caption: message, access_token: pageAccessToken }
+      : { message, access_token: pageAccessToken };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
+
+    logMessage(`✅ Posted to Facebook: ${data.id}`);
+    return { success: true, postId: data.id };
+  } catch (error) {
+    logMessage(`❌ Failed to post to Facebook: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+*/

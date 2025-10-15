@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🧪 Test Facebook Post | Converge AutoPost Bot</title>
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      background: #f4f4f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    form {
+      background: white;
+      padding: 20px 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 400px;
+    }
+    input, textarea, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .response {
+      margin-top: 15px;
+      white-space: pre-wrap;
+      text-align: left;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <form id="fbForm">
+    <h2>🧪 Test Facebook Post</h2>
+    <label>Message:</label>
+    <textarea id="message" rows="3" placeholder="Enter your message..." required></textarea>
+
+    <label>Image URL (optional):</label>
+    <input id="imageUrl" type="text" placeholder="https://drive.google.com/..." />
+
+    <label>Page Access Token:</label>
+    <textarea id="token" rows="3" placeholder="EAAGm0PX4ZCpsBA..." required></textarea>
+
+    <label>Page Name (optional):</label>
+    <input id="pageName" type="text" placeholder="My FB Page" />
+
+    <button type="submit">🚀 Send Test Post</button>
+
+    <div class="response" id="responseBox"></div>
+  </form>
+
+  <script>
+    document.getElementById("fbForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const responseBox = document.getElementById("responseBox");
+      responseBox.textContent = "⏳ Sending...";
+
+      const body = {
+        message: document.getElementById("message").value,
+        imageUrl: document.getElementById("imageUrl").value,
+        pageAccessToken: document.getElementById("token").value,
+        pageName: document.getElementById("pageName").value
+      };
+
+      try {
+        const res = await fetch("/test-facebook", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        responseBox.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        responseBox.textContent = "❌ " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>
