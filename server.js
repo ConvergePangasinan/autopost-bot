@@ -1,38 +1,41 @@
 // ===============================================
 // 🚀 Converge AutoPost Bot Server
-// Version: v3.4.4 (Simplified - Render Ready)
+// Version: v3.4.4 (Root + GOOGLE_CREDENTIALS + Simplified)
 // ===============================================
 
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import bodyParser from "body-parser";
-import { connectToSheet, getPendingPosts } from "./googleSheet.js";
+import { getPendingPosts, connectToSheet } from "./googleSheet.js";
 import { scheduleAllTasks } from "./scheduler.js";
 
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 10000; // ✅ Render will assign the port automatically
+const PORT = process.env.PORT || 4000;
 
-// Middleware
+// 🔹 Middleware
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// =================================================
-// ✅ Root Route
-// =================================================
-app.get("/", (req, res) => {
+// ===============================================
+// 🔹 Test Endpoint
+// ===============================================
+app.get("/", async (req, res) => {
   res.send("✅ Converge AutoPost Bot Server is running...");
 });
 
-// =================================================
-// ✅ Get Pending Posts (for Preview / Debug)
-// =================================================
+// ===============================================
+// 🔹 Get Pending Posts (for Preview / UI)
+// ===============================================
 app.get("/api/posts", async (req, res) => {
   try {
     const posts = await getPendingPosts();
+    if (posts.length === 0) {
+      console.log("⚠️ No pending posts found in Google Sheet");
+    }
     res.json(posts);
   } catch (err) {
     console.error("❌ Error fetching posts:", err.message);
@@ -40,9 +43,9 @@ app.get("/api/posts", async (req, res) => {
   }
 });
 
-// =================================================
-// ✅ Manual Trigger (Run Tasks Now)
-// =================================================
+// ===============================================
+// 🔹 Manual Trigger Endpoint
+// ===============================================
 app.post("/api/manual-trigger", async (req, res) => {
   try {
     console.log("⚙️ Manual trigger started...");
@@ -54,12 +57,12 @@ app.post("/api/manual-trigger", async (req, res) => {
   }
 });
 
-// =================================================
-// 🕒 Scheduler Startup
-// =================================================
+// ===============================================
+// 🔹 Initialize Scheduler (Auto Mode)
+// ===============================================
 (async () => {
   try {
-    console.log("🔄 Connecting to Google Sheet...");
+    console.log("🔄 Connecting to Google Sheets...");
     await connectToSheet();
     console.log("🕓 Scheduling all tasks...");
     await scheduleAllTasks();
@@ -68,9 +71,9 @@ app.post("/api/manual-trigger", async (req, res) => {
   }
 })();
 
-// =================================================
-// 🌐 Start Server
-// =================================================
-app.listen(port, "0.0.0.0", () => {
-  console.log(`🚀 Server running on port ${port}`);
+// ===============================================
+// 🔹 Start Server
+// ===============================================
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
