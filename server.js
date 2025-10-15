@@ -1,6 +1,7 @@
 // ===============================================
 // 🚀 Converge AutoPost Bot Server
-// Version: v3.6.4 (Column Auto-Detection Fix)
+// Version: v3.7.5 (Smart Column Fix + Facebook Preview Integration)
+// Author: Edward John Paulo
 // ===============================================
 
 import express from "express";
@@ -27,15 +28,14 @@ const __dirname = path.dirname(__filename);
 let doc;
 
 // ===============================================
-// 🔐 Load Google Service Credentials
+// 🔐 GOOGLE AUTH
 // ===============================================
 let serviceAccount;
 try {
   serviceAccount = JSON.parse(process.env.GOOGLE_CREDENTIALS);
   logMessage("✅ Loaded GOOGLE_CREDENTIALS from .env");
 } catch (err) {
-  logMessage("❌ Failed to parse GOOGLE_CREDENTIALS");
-  console.error(err);
+  console.error("❌ Failed to parse GOOGLE_CREDENTIALS", err);
   process.exit(1);
 }
 
@@ -45,67 +45,82 @@ const serviceAuth = new JWT({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
+// ===============================================
+// 📊 CONNECT SHEET
+// ===============================================
 async function connectSheet(force = false) {
-  try {
-    if (doc && !force) return doc;
-    doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAuth);
-    await doc.loadInfo();
-    logMessage(`📄 Connected to Google Sheet: ${doc.title}`);
-    return doc;
-  } catch (err) {
-    logMessage("⚠️ Failed to connect to Google Sheet");
-    console.error(err);
-  }
+  if (doc && !force) return doc;
+  doc = new GoogleSpreadsheet(process.env.SHEET_ID, serviceAuth);
+  await doc.loadInfo();
+  logMessage(`📄 Connected to Google Sheet: ${doc.title}`);
+  return doc;
 }
 
 await connectSheet();
 scheduleAllTasks();
 
 // ===============================================
-// 🔎 Helper to normalize keys (case-insensitive)
+// 🧩 HELPER — normalize keys
 // ===============================================
-function normalizeKey(obj, keyName) {
-  const keys = Object.keys(obj);
-  const normalizedKey = keys.find(
-    (k) => k.toLowerCase().trim() === keyName.toLowerCase().trim()
+function normalizeKey(row, key) {
+  const keys = Object.keys(row);
+  const match = keys.find(
+    (k) => k.toLowerCase().trim() === key.toLowerCase().trim()
   );
-  return normalizedKey ? obj[normalizedKey] : undefined;
+  return match ? row[match] : undefined;
 }
 
 // ===============================================
-// 🧠 Routes
+// 🧠 ROOT
 // ===============================================
-app.get("/", (req, res) => {
-  res.send("🚀 Converge AutoPost Bot Server running successfully...");
-});
+app.get("/", (req, res) =>
+  res.send(`
+    <div style="text-align:center;margin-top:40px;">
+      <h2>🚀 Converge AutoPost Bot Server</h2>
+      <p>Welcome, Master Edward!</p>
+      <a href="/preview" style="padding:8px 14px;background:#007bff;color:white;border-radius:8px;text-decoration:none;">Open Preview</a>
+      <br><br>
+      <a href="/facebook-preview" style="padding:8px 14px;background:#1877f2;color:white;border-radius:8px;text-decoration:none;">Facebook Preview UI</a>
+    </div>
+  `)
+);
 
-app.get("/preview-json", async (req, res) => {
+// ===============================================
+// 📡 API: /api/random-post
+// ===============================================
+app.get("/api/random-post", async (req, res) => {
   try {
     const doc = await connectSheet(true);
     const sheet = doc.sheetsByTitle["Posts"];
     const rows = await sheet.getRows();
 
-    const pendingPosts = rows.filter((row) => {
-      const status = normalizeKey(row, "Status");
-      return status && status.toString().toLowerCase().includes("pending");
+    const pending = rows.filter((r) => {
+      const status = normalizeKey(r, "Status");
+      return status && status.toString().toLowerCase().trim() === "pending";
     });
 
+    console.log("📊 Total Rows:", rows.length, "| Pending:", pending.length);
+
+    if (!pending.length)
+      return res.json({ message: "No pending posts found." });
+
+    const random = pending[Math.floor(Math.random() * pending.length)];
+
     res.json({
-      totalRows: rows.length,
-      pendingCount: pendingPosts.length,
-      data: pendingPosts.map((r) => ({
-        Page_Name: normalizeKey(r, "Page_Name"),
-        Message: normalizeKey(r, "Message"),
-        Status: normalizeKey(r, "Status"),
-      })),
+      pageName: normalizeKey(random, "Page_Name"),
+      message: normalizeKey(random, "Message"),
+      imageUrl: normalizeKey(random, "Image_URL"),
+      scheduled: normalizeKey(random, "Scheduled_Time"),
+      status: normalizeKey(random, "Status"),
     });
   } catch (err) {
+    console.error("❌ /api/random-post:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
 // ===============================================
-// 🌐 /preview (Bootstrap-friendly)
+// 🌐 /preview (Bootstrap responsive)
 // ===============================================
 app.get("/preview", async (req, res) => {
   try {
@@ -113,30 +128,29 @@ app.get("/preview", async (req, res) => {
     const sheet = doc.sheetsByTitle["Posts"];
     const rows = await sheet.getRows();
 
-    const pendingPosts = rows.filter((row) => {
-      const status = normalizeKey(row, "Status");
-      return status && status.toString().toLowerCase().includes("pending");
+    const pending = rows.filter((r) => {
+      const status = normalizeKey(r, "Status");
+      return status && status.toString().toLowerCase().trim() === "pending";
     });
 
-    if (pendingPosts.length === 0) {
+    if (!pending.length) {
       return res.send(`
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <div class="container text-center mt-5">
           <div class="alert alert-warning shadow">
             <h4>No Pending Posts Found</h4>
-            <a href="/preview" class="btn btn-primary mt-3">🔁 Try Again</a>
+            <a href="/preview" class="btn btn-primary mt-3">🔁 Reload</a>
           </div>
         </div>
       `);
     }
 
-    const randomPost =
-      pendingPosts[Math.floor(Math.random() * pendingPosts.length)];
+    const post = pending[Math.floor(Math.random() * pending.length)];
 
-    const img = normalizeKey(randomPost, "Image_URL");
-    const page = normalizeKey(randomPost, "Page_Name");
-    const msg = normalizeKey(randomPost, "Message");
-    const sched = normalizeKey(randomPost, "Scheduled_Time");
+    const page = normalizeKey(post, "Page_Name");
+    const msg = normalizeKey(post, "Message");
+    const img = normalizeKey(post, "Image_URL");
+    const sched = normalizeKey(post, "Scheduled_Time");
 
     res.send(`
       <!DOCTYPE html>
@@ -150,7 +164,7 @@ app.get("/preview", async (req, res) => {
       <body class="bg-light text-center py-5">
         <div class="container">
           <div class="card shadow mx-auto" style="max-width: 400px;">
-            <img src="${img}" class="card-img-top" alt="Preview Image">
+            ${img ? `<img src="${img}" class="card-img-top" alt="Preview">` : ""}
             <div class="card-body">
               <h5 class="card-title">${page}</h5>
               <p class="card-text">${msg}</p>
@@ -169,8 +183,15 @@ app.get("/preview", async (req, res) => {
 });
 
 // ===============================================
-// 🚀 Start Server
+// 🪩 /facebook-preview (serves HTML file)
 // ===============================================
-app.listen(PORT, () => {
-  logMessage(`✅ Server running on port ${PORT}`);
+app.get("/facebook-preview", (req, res) => {
+  res.sendFile(path.join(__dirname, "facebook-preview.html"));
 });
+
+// ===============================================
+// 🚀 START SERVER
+// ===============================================
+app.listen(PORT, () =>
+  logMessage(`✅ Server running on port ${PORT}`)
+);
