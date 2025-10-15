@@ -1,13 +1,15 @@
 // ===============================================
-// 📄 Google Sheets Connection
-// Version: v3.4.1
+// 📄 Google Sheets Connection + Pending Post Loader
+// Version: v3.4.2
 // ===============================================
+
 import dotenv from "dotenv";
 import { JWT } from "google-auth-library";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 
 dotenv.config();
 
+// 🔹 Connect to the Google Sheet
 export async function connectToSheet() {
   try {
     if (!process.env.GOOGLE_CREDENTIALS)
@@ -28,5 +30,39 @@ export async function connectToSheet() {
   } catch (err) {
     console.error("❌ Google Sheets connection error:", err.message);
     throw err;
+  }
+}
+
+// 🔹 Get all pending posts
+export async function getPendingPosts() {
+  try {
+    const doc = await connectToSheet();
+    const sheetName = process.env.SHEET_TAB || "Posts"; // your tab name
+    const sheet = doc.sheetsByTitle[sheetName];
+
+    if (!sheet) throw new Error(`Sheet "${sheetName}" not found`);
+
+    const rows = await sheet.getRows();
+    console.log(`📄 Total rows found: ${rows.length}`);
+
+    // Filter only rows with "Pending" status
+    const pendingPosts = rows
+      .filter((row) => {
+        const status = (row.Status || row.status || "").trim().toLowerCase();
+        return status === "pending";
+      })
+      .map((row) => ({
+        id: row.ID || "",
+        caption: row.Caption || row.caption || "",
+        imageUrl: row.ImageURL || row.image_url || "",
+        page: row.Page || row.page || "",
+        status: row.Status || row.status || "",
+      }));
+
+    console.log(`📢 Pending posts found: ${pendingPosts.length}`);
+    return pendingPosts;
+  } catch (err) {
+    console.error("❌ Error fetching pending posts:", err.message);
+    return [];
   }
 }
