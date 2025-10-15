@@ -1,6 +1,6 @@
 // ===============================================
 // 🚀 Converge AutoPost Bot Server
-// Version: v3.6.0 (Root + GOOGLE_CREDENTIALS + Preview)
+// Version: v3.6.1 (Root + GOOGLE_CREDENTIALS + Preview + Pending Fix)
 // ===============================================
 
 import express from "express";
@@ -107,12 +107,21 @@ app.get("/preview", async (req, res) => {
 
     // Fetch all rows
     const rows = await sheet.getRows();
-    console.log(`📄 Found ${rows.length} rows in Posts tab.`);
+    console.log("📊 Total rows found:", rows.length);
 
-    // Filter only pending posts
-    const pendingPosts = rows.filter(
-      (r) => String(r.Status || "").trim().toLowerCase() === "pending"
-    );
+    // Debug log for each Status value
+    rows.forEach((r, i) => console.log(`Row ${i + 1} Status: [${r.Status}]`));
+
+    // ✅ Fix: Case-insensitive + trims spaces + removes hidden spaces
+    const pendingPosts = rows.filter((r) => {
+      const status = String(r.Status || "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ""); // remove weird hidden spaces
+      return status === "pending";
+    });
+
+    console.log("✅ Pending posts found:", pendingPosts.length);
 
     if (pendingPosts.length === 0) {
       console.log("⚠️ No pending posts found.");
@@ -177,4 +186,4 @@ export async function appendLog(doc, entry) {
   } catch (err) {
     console.error("❌ Error writing to Logs sheet:", err.message);
   }
-} // ✅ Fixed: removed extra parenthesis
+}
