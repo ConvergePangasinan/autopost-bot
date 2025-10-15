@@ -177,4 +177,4 @@ export async function appendLog(doc, entry) {
   } catch (err) {
     console.error("❌ Error writing to Logs sheet:", err.message);
   }
-});
+} // ✅ Fixed: removed extra parenthesis
