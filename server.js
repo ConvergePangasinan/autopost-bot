@@ -1,7 +1,6 @@
 // ===============================================
 // 🚀 Converge AutoPost Bot Server
-// Version: v3.4.3 (Root + GOOGLE_CREDENTIALS + KeepAlive)
-// Author: Edward John Paulo
+// Version: v3.4.4 (Root + GOOGLE_CREDENTIALS + Render Port Fix)
 // ===============================================
 
 import express from "express";
@@ -11,12 +10,10 @@ import bodyParser from "body-parser";
 import { getPendingPosts, connectToSheet } from "./googleSheet.js";
 import { scheduleAllTasks } from "./scheduler.js";
 import { logMessage } from "./logger.js";
-import { startKeepAlive } from "./ping.js"; // ✅ Added KeepAlive pinger
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 4000;
 
 // ===============================================
 // 🔹 Middleware
@@ -26,24 +23,24 @@ app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // ===============================================
-// 🔹 Root Endpoint (Health Check)
+// 🔹 Root Endpoint (Render Health Check)
 // ===============================================
 app.get("/", async (req, res) => {
-  res.send("✅ Converge AutoPost Bot Server is running...");
+  res.send("✅ Converge AutoPost Bot Server is running on Render...");
 });
 
 // ===============================================
-// 🔹 Get Pending Posts (for Preview / Dashboard)
+// 🔹 Get Pending Posts
 // ===============================================
 app.get("/api/posts", async (req, res) => {
   try {
     const posts = await getPendingPosts();
     if (!posts || posts.length === 0) {
-      logMessage("⚠️ No pending posts found in sheet");
+      console.log("⚠️ No pending posts found in Google Sheet");
     }
     res.json(posts);
   } catch (err) {
-    logMessage(`❌ Error fetching posts: ${err.message}`);
+    console.error("❌ Error fetching posts:", err.message);
     res.status(500).json({ error: "Failed to fetch posts" });
   }
 });
@@ -53,37 +50,33 @@ app.get("/api/posts", async (req, res) => {
 // ===============================================
 app.post("/api/manual-trigger", async (req, res) => {
   try {
-    logMessage("⚙️ Manual trigger started...");
+    console.log("⚙️ Manual trigger started...");
     await scheduleAllTasks();
     res.json({ success: true, message: "Manual trigger executed successfully" });
   } catch (err) {
-    logMessage(`❌ Manual trigger error: ${err.message}`);
+    console.error("❌ Manual trigger error:", err.message);
     res.status(500).json({ error: "Manual trigger failed" });
   }
 });
 
 // ===============================================
-// 🔹 Initialization (Google Sheets + Scheduler)
+// 🔹 Initialize Google Sheet & Scheduler
 // ===============================================
 (async () => {
   try {
-    logMessage("🔄 Connecting to Google Sheets...");
+    console.log("🔄 Connecting to Google Sheets...");
     await connectToSheet();
-    logMessage("🕓 Scheduling all tasks...");
+    console.log("🕓 Scheduling all tasks...");
     await scheduleAllTasks();
-
-    // ✅ Start KeepAlive ping
-    startKeepAlive();
-
   } catch (err) {
-    logMessage(`❌ Initialization error: ${err.message}`);
+    console.error("❌ Initialization error:", err.message);
   }
 })();
 
 // ===============================================
-// 🔹 Start Express Server
+// 🔹 Start Server (Render Port Binding Fix)
 // ===============================================
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  logMessage(`🚀 Server running on port ${PORT}`);
+const PORT = process.env.PORT || 10000; // Render default port is 10000
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on Render port ${PORT}`);
 });
