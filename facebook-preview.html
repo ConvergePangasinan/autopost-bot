@@ -1,162 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Facebook Post Preview</title>
+  <meta charset="UTF-8">
+  <title>Facebook Preview</title>
   <style>
-    body {
-      background: #f0f2f5;
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      min-height: 100vh;
-      margin: 0;
-      padding: 40px 0;
-    }
-
-    .fb-post {
-      background: #fff;
-      width: 500px;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
-
-    .fb-header {
-      display: flex;
-      align-items: center;
-      padding: 10px 15px;
-    }
-
-    .fb-header img {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      margin-right: 10px;
-    }
-
-    .fb-header .fb-name {
-      font-weight: bold;
-      color: #050505;
-    }
-
-    .fb-header .fb-time {
-      color: #65676b;
-      font-size: 13px;
-    }
-
-    .fb-message {
-      padding: 0 15px 10px 15px;
-      color: #050505;
-      font-size: 15px;
-      line-height: 1.5;
-    }
-
-    .fb-image {
-      width: 100%;
-      max-height: 400px;
-      object-fit: cover;
-    }
-
-    .fb-actions {
-      display: flex;
-      justify-content: space-around;
-      padding: 10px 0;
-      border-top: 1px solid #ddd;
-    }
-
-    .fb-actions button {
-      background: none;
-      border: none;
-      color: #65676b;
-      font-weight: bold;
-      cursor: pointer;
-      padding: 8px;
-      font-size: 14px;
-    }
-
-    .fb-actions button:hover {
-      background: #f2f2f2;
-      border-radius: 5px;
-    }
-
-    .next-btn {
-      display: block;
-      background: #1877f2;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-      margin: 10px auto;
-      transition: 0.3s;
-    }
-
-    .next-btn:hover {
-      background: #145dbf;
-    }
+    body { font-family: Arial, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 40px; }
+    .card { background: white; border-radius: 8px; width: 400px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .header { display: flex; justify-content: space-between; align-items: center; }
+    .button { background: #1877f2; color: white; border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+    .message { margin-top: 15px; }
+    img { width: 100%; border-radius: 6px; margin-top: 10px; }
   </style>
 </head>
 <body>
-  <div id="preview-container"></div>
-
-  <button class="next-btn" onclick="loadRandomPost()">Next Random Post</button>
+  <div class="card">
+    <div class="header">
+      <strong>My Page</strong>
+      <button class="button" onclick="loadPost()">Next Random Post</button>
+    </div>
+    <p class="message">Loading...</p>
+    <img id="postImage" src="" alt="" style="display:none;">
+  </div>
 
   <script>
-    // Example post data — replace these later with fetched sheet data
-    const posts = [
-      {
-        name: "Converge FiberX",
-        profile: "https://upload.wikimedia.org/wikipedia/commons/0/09/Facebook_f_logo_%282019%29.svg",
-        message: "Enjoy ultra-fast internet connection with Converge FiberX! 🚀",
-        image: "https://source.unsplash.com/featured/?internet,technology",
-      },
-      {
-        name: "Tech World",
-        profile: "https://cdn-icons-png.flaticon.com/512/145/145802.png",
-        message: "Discover new innovations shaping the digital future 🌐",
-        image: "https://source.unsplash.com/featured/?innovation,tech",
-      },
-      {
-        name: "Daily Inspiration",
-        profile: "https://cdn-icons-png.flaticon.com/512/145/145802.png",
-        message: "Believe you can and you're halfway there. 💪",
-        image: "https://source.unsplash.com/featured/?motivation,success",
+    async function loadPost() {
+      const res = await fetch('/api/random-post');
+      const data = await res.json();
+      document.querySelector('.message').textContent = data.message || 'No message';
+      const img = document.getElementById('postImage');
+      if (data.imageUrl) {
+        img.src = data.imageUrl;
+        img.style.display = 'block';
+      } else {
+        img.style.display = 'none';
       }
-    ];
-
-    function renderPost(post) {
-      document.getElementById('preview-container').innerHTML = `
-        <div class="fb-post">
-          <div class="fb-header">
-            <img src="${post.profile}" alt="Profile">
-            <div>
-              <div class="fb-name">${post.name}</div>
-              <div class="fb-time">Just now · 🌐</div>
-            </div>
-          </div>
-          <div class="fb-message">${post.message}</div>
-          <img class="fb-image" src="${post.image}" alt="Post image">
-          <div class="fb-actions">
-            <button>👍 Like</button>
-            <button>💬 Comment</button>
-            <button>↪️ Share</button>
-          </div>
-        </div>
-      `;
     }
-
-    function loadRandomPost() {
-      const random = posts[Math.floor(Math.random() * posts.length)];
-      renderPost(random);
-    }
-
-    // Load the first post automatically
-    loadRandomPost();
+    loadPost();
   </script>
 </body>
 </html>
